@@ -1,5 +1,7 @@
 # mcpaudit
 
+![CI](https://github.com/Pyhroff/mcpaudit/actions/workflows/ci.yml/badge.svg)
+
 A security scanner for **MCP server tool surfaces** — the thing every AI
 agent now plugs into for tools, and the thing almost nothing audits before
 it's live.
@@ -118,6 +120,35 @@ samples/
 └── malicious_server/        # deliberately poisoned fixture -- test data only,
                               # see the warning at the top of that file
 ```
+
+## Validated against real software
+
+Every check has a unit test, but tests against your own fixtures only
+prove the code does what you told it to. So: `mcpaudit scan` was also run
+against the real, official [MCP filesystem server](https://github.com/modelcontextprotocol/servers)
+(`npx @modelcontextprotocol/server-filesystem`), not just the two local
+fixtures. Two real things came out of that, both already fixed (see
+[CHANGELOG.md](CHANGELOG.md)'s v0.3.1 entry for the detail):
+
+- **A real false positive**: the server's real `read_file` tool has the
+  description *"DEPRECATED: Use read_text_file instead"* — ordinary
+  deprecation text that an earlier, looser version of the cross-tool
+  heuristic flagged as possible poisoning. Narrowed the pattern and added
+  a regression test using that exact real description.
+- **A real bug**: scanning a real (subprocess-launched) server threw an
+  uncaught `RuntimeError: Event loop is closed` from asyncio's own cleanup
+  path on every run. Fixed.
+
+After both fixes, a scan of that real server correctly flags all 9 of its
+tools for unscoped filesystem access (no schema constraint on any `path`
+parameter) with zero false positives.
+
+The dynamic `--dynamic` confused-deputy check is covered by 8 mocked
+tests, including one asserting the injected payload never leaks into a
+direct user message — but hasn't yet been run against a live target model
+from this environment (outbound access to LLM API hosts is blocked here
+by network policy, not by anything in the check itself). If you run it
+yourself, this section will get updated with a real result.
 
 ## Limitations
 

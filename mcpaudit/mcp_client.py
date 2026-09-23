@@ -65,11 +65,23 @@ class StdioMCPClient:
         if self._proc is None:
             return
         try:
+            if self._proc.stdin and not self._proc.stdin.is_closing():
+                self._proc.stdin.close()
             self._proc.terminate()
             await asyncio.wait_for(self._proc.wait(), timeout=5)
         except (ProcessLookupError, asyncio.TimeoutError):
             pass
-        self._proc = None
+        finally:
+            # Close the subprocess transport explicitly, now, while the loop
+            # is still running. Left to garbage collection, its __del__ can
+            # fire *after* asyncio.run() has already closed the loop --
+            # "RuntimeError: Event loop is closed" from a finalizer, not an
+            # exception either caller or callee can catch. Observed on a
+            # real scan (npx-launched MCP server, Python 3.10/Linux).
+            transport = getattr(self._proc, "_transport", None)
+            if transport is not None:
+                transport.close()
+            self._proc = None
 
     async def _send(self, payload: dict[str, Any]) -> None:
         assert self._proc is not None and self._proc.stdin is not None

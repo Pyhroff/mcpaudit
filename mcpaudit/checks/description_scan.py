@@ -72,11 +72,17 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
             ))
 
         # Cross-tool poisoning: description references another *declared* tool
-        # name alongside imperative language -- a classic way one tool
-        # hijacks how a completely different tool gets used.
+        # name alongside coercive language -- a classic way one tool hijacks
+        # how a completely different tool gets used. Deliberately narrow to
+        # "must"/"always" (coercion), not "instead"/"never" alone -- those
+        # also show up in ordinary, benign deprecation notices ("DEPRECATED:
+        # use X instead"), which is not the pattern this check is for. Caught
+        # via a real scan of the official MCP filesystem server, which uses
+        # exactly that phrasing legitimately.
         for other in known_tool_names:
             if other != tool.name and other and re.search(
-                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always|instead|never)\b", lower
+                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                lower,
             ):
                 findings.append(Finding(
                     check="description_scan", tool=tool.name, severity=Severity.MEDIUM,

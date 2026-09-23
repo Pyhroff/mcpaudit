@@ -5,6 +5,39 @@ stage is a small, working, tested slice rather than one big-bang commit.
 
 ## [Unreleased]
 
+## [0.3.1] -- validated against a real MCP server, two real bugs fixed
+Ran `mcpaudit scan` against the official MCP filesystem server
+(`@modelcontextprotocol/server-filesystem`, github.com/modelcontextprotocol/servers)
+instead of only the two local fixtures. Found two real issues in the
+process:
+- **False positive fixed**: `read_file`'s real description is "Read the
+  complete contents of a file as text. DEPRECATED: Use read_text_file
+  instead." -- an ordinary deprecation notice. The cross-tool-poisoning
+  pattern in `description_scan` was matching on "instead"/"never" alone,
+  which is far too common in benign text. Narrowed to require "must" or
+  "always" (real coercive language) instead. Added a regression test
+  using this exact real-world description.
+- **Real bug fixed**: `StdioMCPClient.close()` left a subprocess transport
+  for the garbage collector to close, whose `__del__` finalizer could fire
+  *after* `asyncio.run()` had already closed the event loop, throwing an
+  uncaught `RuntimeError: Event loop is closed` on every scan of a real
+  (npx-launched) server. Fixed by explicitly closing the transport while
+  the loop is still running.
+
+Result after both fixes: a clean scan against a real, widely-used server
+correctly flags all 9 of its tools for unscoped filesystem access (no
+enum/pattern/format on any `path` parameter) and raises zero false
+positives.
+
+Also confirmed: the dynamic `--dynamic` confused-deputy check is exercised
+by 8 mocked tests (including the tool-output channel-isolation test) but
+was not runnable against a live model from this environment -- the sandbox
+this was built in blocks outbound access to LLM API hosts by policy. Run
+`GROQ_API_KEY=... mcpaudit scan --dynamic -- <server>` yourself for a live
+result; nothing about the check depends on this environment specifically.
+
+34 tests total (was 33): +1 regression test for the false positive.
+
 ## [0.3.0] -- dynamic confused-deputy check
 - `mcpaudit scan --dynamic --target groq/<model> [--tool NAME]`: wraps a
   real target LLM in a bounded tool-use loop, has it pick a tool from the

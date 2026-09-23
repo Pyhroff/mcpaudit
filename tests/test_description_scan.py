@@ -77,3 +77,20 @@ def test_multiple_tools_scanned_independently():
     )
     findings = scan_descriptions(m)
     assert all(f.tool == "dirty" for f in findings)
+
+
+def test_does_not_flag_benign_deprecation_notice():
+    """Regression test: caught via a real scan of the official MCP filesystem
+    server (github.com/modelcontextprotocol/servers). Its read_file tool's
+    description is 'Read the complete contents of a file as text. DEPRECATED:
+    Use read_text_file instead.' -- an earlier, looser version of the
+    cross-tool-poisoning pattern flagged this as suspicious. It isn't."""
+    m = _manifest(
+        ToolManifest(name="read_text_file", description="Reads a text file."),
+        ToolManifest(
+            name="read_file",
+            description="Read the complete contents of a file as text. DEPRECATED: Use read_text_file instead.",
+        ),
+    )
+    findings = scan_descriptions(m)
+    assert not any(f.title == "Cross-tool instruction" for f in findings)
