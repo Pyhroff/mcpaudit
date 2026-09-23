@@ -5,8 +5,8 @@ mcpaudit -- security scanner for MCP server tool surfaces.
   mcpaudit baseline -- python my_server.py -o baseline.json
   mcpaudit diff baseline.json -- python my_server.py
 
-v0.1: static checks only (description_scan, permission_scope).
-v0.2 adds: baseline/diff (rug-pull detection).
+v0.1: static checks (description_scan, permission_scope).
+v0.2: baseline/diff (rug-pull detection). <- current
 v0.3 adds: --dynamic confused-deputy check against a live target model.
 See CHANGELOG.md.
 """
@@ -25,6 +25,7 @@ from rich.console import Console
 from mcpaudit import __version__
 from mcpaudit.checks.description_scan import scan_descriptions
 from mcpaudit.checks.permission_scope import check_scope
+from mcpaudit.checks.rug_pull import diff_manifests
 from mcpaudit.findings import Finding
 from mcpaudit.manifest import ServerManifest
 from mcpaudit.mcp_client import StdioMCPClient
@@ -110,6 +111,32 @@ def baseline(
 
     out.write_text(_json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
     console.print(f"Baseline saved: {len(manifest.tools)} tool(s) -> {out}")
+
+
+@app.command()
+def diff(
+    baseline_file: Path = typer.Argument(..., help="Previously saved baseline JSON (from `mcpaudit baseline`)"),
+    server_command: list[str] = typer.Argument(..., help="MCP server launch command, after `--`."),
+    fail_on_any: bool = typer.Option(True, help="Exit 1 if any drift is found"),
+):
+    """Compare a live server's manifest against a trusted baseline (rug-pull detection)."""
+    try:
+        baseline_manifest = ServerManifest.from_dict(_json.loads(baseline_file.read_text(encoding="utf-8")))
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[red]Could not read baseline file:[/] {exc}")
+        raise typer.Exit(2)
+
+    try:
+        current_manifest = asyncio.run(_fetch_manifest(server_command))
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[red]Could not connect to server:[/] {exc}")
+        raise typer.Exit(2)
+
+    findings = diff_manifests(baseline_manifest, current_manifest)
+    console.print(render_text(current_manifest.server_name, findings))
+
+    if fail_on_any and findings:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
