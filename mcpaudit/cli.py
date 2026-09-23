@@ -6,8 +6,8 @@ mcpaudit -- security scanner for MCP server tool surfaces.
   mcpaudit diff baseline.json -- python my_server.py
 
 v0.1: static checks (description_scan, permission_scope).
-v0.2: baseline/diff (rug-pull detection). <- current
-v0.3 adds: --dynamic confused-deputy check against a live target model.
+v0.2: baseline/diff (rug-pull detection).
+v0.3: --dynamic confused-deputy check against a live target model. <- current
 See CHANGELOG.md.
 """
 
@@ -26,6 +26,7 @@ from mcpaudit import __version__
 from mcpaudit.checks.description_scan import scan_descriptions
 from mcpaudit.checks.permission_scope import check_scope
 from mcpaudit.checks.rug_pull import diff_manifests
+from mcpaudit.checks.confused_deputy import run_confused_deputy_check, to_finding
 from mcpaudit.findings import Finding
 from mcpaudit.manifest import ServerManifest
 from mcpaudit.mcp_client import StdioMCPClient
@@ -75,8 +76,20 @@ def scan(
         None, "--fail-on", help="Exit 1 if any finding at/above this severity (low|medium|high|critical). "
                                  "For CI gates."
     ),
+    dynamic: bool = typer.Option(
+        False, "--dynamic", help="Also run the confused-deputy check against a real target model "
+                                  "(needs --target and GROQ_API_KEY)."
+    ),
+    target: str = typer.Option(
+        "groq/openai/gpt-oss-120b", "--target", help="Target model for --dynamic: groq/<model>."
+    ),
+    dynamic_tool: Optional[str] = typer.Option(
+        None, "--tool", help="Which tool to run the confused-deputy trial against "
+                              "[default: every tool in the manifest]."
+    ),
 ):
-    """Fetch a server's tool manifest and run the static checks against it."""
+    """Fetch a server's tool manifest and run the static checks against it (add --dynamic for the
+    confused-deputy check, which also needs a live target model)."""
     try:
         manifest = asyncio.run(_fetch_manifest(server_command))
     except Exception as exc:  # noqa: BLE001
@@ -84,6 +97,10 @@ def scan(
         raise typer.Exit(2)
 
     findings = _run_static_checks(manifest)
+
+    if dynamic:
+        findings += asyncio.run(_run_dynamic_check(manifest, target, dynamic_tool))
+
     console.print(render_text(manifest.server_name, findings))
 
     if json_out:
@@ -95,6 +112,33 @@ def scan(
         threshold = order.index(fail_on.lower())
         if any(order.index(f.severity.value) >= threshold for f in findings):
             raise typer.Exit(1)
+
+
+async def _run_dynamic_check(manifest: ServerManifest, target: str, tool_name: Optional[str]) -> list[Finding]:
+    import os
+
+    provider, model = target.split("/", 1) if "/" in target else ("groq", target)
+    if provider != "groq":
+        console.print(f"[yellow]--dynamic currently only supports groq/<model> targets, got '{target}'[/]")
+        return []
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        console.print("[yellow]--dynamic needs GROQ_API_KEY set -- skipping confused-deputy check.[/]")
+        return []
+
+    from mcpaudit.adapters.groq import GroqAdapter
+    adapter = GroqAdapter(api_key=api_key, model=model)
+
+    tool_names = [tool_name] if tool_name else [t.name for t in manifest.tools]
+    findings: list[Finding] = []
+    for name in tool_names:
+        console.print(f"[dim]running confused-deputy trial against tool '{name}'...[/]")
+        result = await run_confused_deputy_check(adapter, manifest, name)
+        finding = to_finding(result)
+        if finding:
+            findings.append(finding)
+    return findings
 
 
 @app.command()

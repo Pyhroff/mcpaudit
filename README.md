@@ -54,28 +54,38 @@ See [CHANGELOG.md](CHANGELOG.md) for the running detail.
 |---|---|
 | **v0.1** | Static scanner core — manifest fetch + `description_scan` + `permission_scope` checks, text/JSON scorecard, CI-gate exit code |
 | **v0.2** | Rug-pull detection — `baseline`/`diff` against a previously trusted manifest |
-| **v0.3** | Dynamic confused-deputy check — a real target LLM wrapped in a tool-use loop against the live server, tool-output injection test |
+| **v0.3** | Dynamic confused-deputy check — a real target LLM wrapped in a tool-use loop against the live server's real manifest, tool-output injection test — `--dynamic` |
 
 ---
 
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,dynamic]"
 
-# scan a server (everything after -- is its launch command)
+# static checks only (no API key needed)
 mcpaudit scan -- python samples/malicious_server/server.py
+
+# add the dynamic confused-deputy check against a real target model
+GROQ_API_KEY=... mcpaudit scan --dynamic -- python samples/malicious_server/server.py
 
 # machine-readable output + CI gate
 mcpaudit scan --json report.json --fail-on high -- python my_server.py
+
+# rug-pull detection
+mcpaudit baseline -o approved.json -- python my_server.py
+mcpaudit diff approved.json -- python my_server.py   # later, on the same or updated server
 ```
 
 ## CLI reference
 
 ```
 mcpaudit scan [OPTIONS] -- <server command>
-  --json PATH        write a JSON scorecard
-  --fail-on LEVEL     exit 1 if any finding >= LEVEL (low|medium|high|critical)
+  --json PATH          write a JSON scorecard
+  --fail-on LEVEL      exit 1 if any finding >= LEVEL (low|medium|high|critical)
+  --dynamic            also run the confused-deputy check against a real target model
+  --target groq/MODEL  target for --dynamic [default: groq/openai/gpt-oss-120b]
+  --tool NAME          restrict --dynamic to one tool [default: every tool in the manifest]
 
 mcpaudit baseline [OPTIONS] -- <server command>
   --out PATH          where to save the manifest snapshot [default: mcpaudit-baseline.json]
@@ -98,9 +108,10 @@ mcpaudit/
 ├── checks/
 │   ├── description_scan.py # tool-poisoning pattern detection
 │   ├── permission_scope.py # over-broad capability heuristics
-│   └── rug_pull.py         # baseline-vs-live manifest diff (v0.2)
+│   ├── rug_pull.py         # baseline-vs-live manifest diff
+│   └── confused_deputy.py  # tool-output injection test against a live target model
 └── adapters/                # BaseAdapter/GroqAdapter -- same shape as PromptStrike's,
-                              # used only by the dynamic confused-deputy check (v0.3)
+                              # used only by the dynamic confused-deputy check
 
 samples/
 ├── clean_server/            # benign fixture MCP server

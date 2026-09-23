@@ -6,15 +6,23 @@ stage is a small, working, tested slice rather than one big-bang commit.
 ## [Unreleased]
 
 ## [0.3.0] -- dynamic confused-deputy check
-- `mcpaudit scan --dynamic --target groq/<model>`: wraps a real target LLM
-  in a bounded tool-use loop against the live MCP server, injects an
-  adversarial instruction as a tool's *return value* (not a user message),
-  and checks whether the model complies -- the confused-deputy scenario.
+- `mcpaudit scan --dynamic --target groq/<model> [--tool NAME]`: wraps a
+  real target LLM in a bounded tool-use loop, has it pick a tool from the
+  server's real manifest, then substitutes an adversarial payload for that
+  tool's *return value* -- delivered only inside a `[TOOL RESULT: ...]`
+  message, never as a direct user message -- and checks whether the model
+  complies anyway. Flags CRITICAL when it does.
 - Reuses the tool-output-injection technique built for PromptStrike's
   `AgentAdapter` (see github.com/Pyhroff/promptstrike), pointed at a real
-  server instead of a mock tool.
+  server's real manifest instead of a mocked `search` tool.
 - `samples/malicious_server`: a deliberately poisoned MCP server fixture
-  used by the test suite and as a live demo target.
+  (inert -- canned text only, no real filesystem/network/exec access) used
+  by the test suite and as a live demo target. `samples/clean_server`
+  used as the "should be quiet" control.
+- 33 tests total (was 25): +8 for the confused-deputy check, including one
+  that asserts the injected instruction only ever reaches the target
+  inside a tool-result message, mirroring PromptStrike's channel-isolation
+  test.
 
 ## [0.2.0] -- rug-pull detection
 - `mcpaudit baseline -- <server cmd>`: snapshot a server's manifest to disk.

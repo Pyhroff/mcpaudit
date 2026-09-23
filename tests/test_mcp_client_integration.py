@@ -48,3 +48,23 @@ async def test_clean_server_manifest_passes_static_checks():
 
     findings = scan_descriptions(manifest) + check_scope(manifest)
     assert findings == [], f"clean fixture should have zero findings, got: {findings}"
+
+
+@pytest.mark.asyncio
+async def test_malicious_fixture_is_flagged_by_static_checks():
+    """End-to-end sanity check the other direction: the poisoned fixture
+    should trip both static checks, on the tools it's designed to trip."""
+    from mcpaudit.checks.description_scan import scan_descriptions
+    from mcpaudit.checks.permission_scope import check_scope
+
+    malicious_server = Path(__file__).parent.parent / "samples" / "malicious_server" / "server.py"
+    async with StdioMCPClient([sys.executable, str(malicious_server)]) as client:
+        manifest = await client.fetch_manifest()
+
+    findings = scan_descriptions(manifest) + check_scope(manifest)
+    flagged_tools = {f.tool for f in findings}
+
+    assert "search" in flagged_tools        # tool-poisoning description
+    assert "read_file" in flagged_tools     # unscoped filesystem access
+    assert "run_command" in flagged_tools   # unscoped command execution
+    assert len(findings) >= 3
