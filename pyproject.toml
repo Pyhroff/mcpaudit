@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcpaudit"
+version = "0.1.0"
+description = "Security scanner for MCP server tool surfaces -- tool poisoning, over-broad scope, rug-pulls, and tool-output confused-deputy testing."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Pyhroff" }]
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+dynamic = ["groq>=0.9"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[project.scripts]
+mcpaudit = "mcpaudit.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcpaudit*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
