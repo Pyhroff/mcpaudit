@@ -57,6 +57,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the running detail.
 | **v0.1** | Static scanner core — manifest fetch + `description_scan` + `permission_scope` checks, text/JSON scorecard, CI-gate exit code |
 | **v0.2** | Rug-pull detection — `baseline`/`diff` against a previously trusted manifest |
 | **v0.3** | Dynamic confused-deputy check — a real target LLM wrapped in a tool-use loop against the live server's real manifest, tool-output injection test — `--dynamic` |
+| **v0.4** | Streamable HTTP transport — `--url` scans a remote/hosted MCP server, not just a local stdio process |
 
 ---
 
@@ -82,19 +83,22 @@ mcpaudit diff approved.json -- python my_server.py   # later, on the same or upd
 ## CLI reference
 
 ```
-mcpaudit scan [OPTIONS] -- <server command>
+mcpaudit scan [OPTIONS] (-- <server command> | --url <endpoint>)
+  --url URL            scan a remote server over Streamable HTTP instead of a local process
   --json PATH          write a JSON scorecard
   --fail-on LEVEL      exit 1 if any finding >= LEVEL (low|medium|high|critical)
   --dynamic            also run the confused-deputy check against a real target model
   --target groq/MODEL  target for --dynamic [default: groq/openai/gpt-oss-120b]
   --tool NAME          restrict --dynamic to one tool [default: every tool in the manifest]
 
-mcpaudit baseline [OPTIONS] -- <server command>
+mcpaudit baseline [OPTIONS] (-- <server command> | --url <endpoint>)
   --out PATH          where to save the manifest snapshot [default: mcpaudit-baseline.json]
 
-mcpaudit diff <baseline.json> -- <server command>
+mcpaudit diff <baseline.json> (-- <server command> | --url <endpoint>)
   # compares live manifest against the snapshot, flags any drift
 ```
+
+`--url` and a `-- <server command>` are mutually exclusive -- pass exactly one.
 
 ---
 
@@ -103,7 +107,7 @@ mcpaudit diff <baseline.json> -- <server command>
 ```
 mcpaudit/
 ├── manifest.py            # ServerManifest / ToolManifest data model
-├── mcp_client.py           # minimal stdio MCP client (tools/list, tools/call)
+├── mcp_client.py           # StdioMCPClient + HttpMCPClient (tools/list, tools/call)
 ├── findings.py             # shared Finding / Severity types
 ├── report.py               # scorecard rendering (text + JSON)
 ├── cli.py                  # typer CLI

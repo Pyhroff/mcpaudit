@@ -7,7 +7,8 @@ mcpaudit -- security scanner for MCP server tool surfaces.
 
 v0.1: static checks (description_scan, permission_scope).
 v0.2: baseline/diff (rug-pull detection).
-v0.3: --dynamic confused-deputy check against a live target model. <- current
+v0.3: --dynamic confused-deputy check against a live target model.
+v0.4: --url for MCP's Streamable HTTP transport, not just local stdio. <- current
 See CHANGELOG.md.
 """
 
@@ -29,7 +30,7 @@ from mcpaudit.checks.rug_pull import diff_manifests
 from mcpaudit.checks.confused_deputy import run_confused_deputy_check, to_finding
 from mcpaudit.findings import Finding
 from mcpaudit.manifest import ServerManifest
-from mcpaudit.mcp_client import StdioMCPClient
+from mcpaudit.mcp_client import MCPClient, StdioMCPClient, HttpMCPClient
 from mcpaudit.report import render_text, to_json, risk_score
 
 app = typer.Typer(
@@ -54,8 +55,18 @@ def main(
     pass
 
 
-async def _fetch_manifest(command: list[str]) -> ServerManifest:
-    async with StdioMCPClient(command) as client:
+def _make_client(server_command: list[str], url: Optional[str]) -> MCPClient:
+    if url and server_command:
+        raise typer.BadParameter("pass either a server command (after --) or --url, not both")
+    if url:
+        return HttpMCPClient(url)  # type: ignore[return-value]
+    if not server_command:
+        raise typer.BadParameter("need a server command after -- (or --url for an HTTP server)")
+    return StdioMCPClient(server_command)  # type: ignore[return-value]
+
+
+async def _fetch_manifest(server_command: list[str], url: Optional[str] = None) -> ServerManifest:
+    async with _make_client(server_command, url) as client:
         return await client.fetch_manifest()
 
 
@@ -69,7 +80,12 @@ def _run_static_checks(manifest: ServerManifest) -> list[Finding]:
 @app.command()
 def scan(
     server_command: list[str] = typer.Argument(
-        ..., help="MCP server launch command, after `--`. e.g. -- python server.py"
+        None, help="MCP server launch command, after `--`. e.g. -- python server.py. "
+                    "Omit if using --url instead."
+    ),
+    url: Optional[str] = typer.Option(
+        None, "--url", help="Scan a remote server over MCP's Streamable HTTP transport "
+                             "instead of launching a local stdio process."
     ),
     json_out: Optional[Path] = typer.Option(None, "--json", help="Write JSON scorecard to this path"),
     fail_on: Optional[str] = typer.Option(
@@ -91,7 +107,7 @@ def scan(
     """Fetch a server's tool manifest and run the static checks against it (add --dynamic for the
     confused-deputy check, which also needs a live target model)."""
     try:
-        manifest = asyncio.run(_fetch_manifest(server_command))
+        manifest = asyncio.run(_fetch_manifest(server_command or [], url))
     except Exception as exc:  # noqa: BLE001
         console.print(f"[red]Could not connect to server:[/] {exc}")
         raise typer.Exit(2)
@@ -143,12 +159,13 @@ async def _run_dynamic_check(manifest: ServerManifest, target: str, tool_name: O
 
 @app.command()
 def baseline(
-    server_command: list[str] = typer.Argument(..., help="MCP server launch command, after `--`."),
+    server_command: list[str] = typer.Argument(None, help="MCP server launch command, after `--`."),
+    url: Optional[str] = typer.Option(None, "--url", help="Snapshot a remote server over HTTP instead."),
     out: Path = typer.Option(Path("mcpaudit-baseline.json"), "--out", "-o"),
 ):
     """Snapshot a server's current manifest, for later rug-pull comparison (see `diff`)."""
     try:
-        manifest = asyncio.run(_fetch_manifest(server_command))
+        manifest = asyncio.run(_fetch_manifest(server_command or [], url))
     except Exception as exc:  # noqa: BLE001
         console.print(f"[red]Could not connect to server:[/] {exc}")
         raise typer.Exit(2)
@@ -160,7 +177,8 @@ def baseline(
 @app.command()
 def diff(
     baseline_file: Path = typer.Argument(..., help="Previously saved baseline JSON (from `mcpaudit baseline`)"),
-    server_command: list[str] = typer.Argument(..., help="MCP server launch command, after `--`."),
+    server_command: list[str] = typer.Argument(None, help="MCP server launch command, after `--`."),
+    url: Optional[str] = typer.Option(None, "--url", help="Compare against a remote server over HTTP instead."),
     fail_on_any: bool = typer.Option(True, help="Exit 1 if any drift is found"),
 ):
     """Compare a live server's manifest against a trusted baseline (rug-pull detection)."""
@@ -171,7 +189,7 @@ def diff(
         raise typer.Exit(2)
 
     try:
-        current_manifest = asyncio.run(_fetch_manifest(server_command))
+        current_manifest = asyncio.run(_fetch_manifest(server_command or [], url))
     except Exception as exc:  # noqa: BLE001
         console.print(f"[red]Could not connect to server:[/] {exc}")
         raise typer.Exit(2)

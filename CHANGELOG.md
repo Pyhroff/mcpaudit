@@ -5,6 +5,29 @@ stage is a small, working, tested slice rather than one big-bang commit.
 
 ## [Unreleased]
 
+## [0.4.0] -- Streamable HTTP transport
+- `HttpMCPClient`: speaks MCP's current Streamable HTTP transport (a
+  single POST endpoint, `application/json` or one-shot `text/event-stream`
+  responses, session continuity via the `Mcp-Session-Id` header) -- so
+  mcpaudit can scan a remote/hosted MCP server, not only a local
+  subprocess.
+- `StdioMCPClient` and `HttpMCPClient` now share a minimal `MCPClient`
+  Protocol (`fetch_manifest`/`call_tool`); every check only ever sees a
+  `ServerManifest`, so nothing in checks/ needed to change.
+- `mcpaudit scan|baseline|diff --url <endpoint>` in place of a `-- <server
+  command>`; passing both, or neither, is a clear error rather than a
+  silent wrong-transport pick.
+- 5 new tests against `HttpMCPClient` using `httpx.MockTransport` --
+  exercises the real request/response/session-header code against a fake
+  server, not a mock of the client itself. Covers both response shapes
+  (plain JSON and SSE), session-ID propagation across requests, and a
+  JSON-RPC error response.
+
+39 tests total (was 34). CLI smoke-tested: stdio path unchanged, --url
+against an unreachable host degrades to a clean exit-2 error (no
+traceback), and passing both / neither is rejected before any connection
+attempt.
+
 ## [0.3.1] -- validated against a real MCP server, two real bugs fixed
 Ran `mcpaudit scan` against the official MCP filesystem server
 (`@modelcontextprotocol/server-filesystem`, github.com/modelcontextprotocol/servers)
