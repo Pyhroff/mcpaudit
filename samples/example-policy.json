@@ -1,0 +1,10 @@
+{
+  "ignore": [
+    {
+      "tool": "*",
+      "check": "permission_scope",
+      "title": "Unscoped filesystem access",
+      "reason": "Reviewed against the official @modelcontextprotocol/server-filesystem scan (see README) -- the server's --allowed-dir launch flag scopes access at runtime; the tool schema itself can't express that constraint, so this check will always flag it there. Accepted as a known limitation of static schema analysis, not a real vulnerability in this deployment."
+    }
+  ]
+}

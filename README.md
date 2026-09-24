@@ -58,6 +58,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the running detail.
 | **v0.2** | Rug-pull detection — `baseline`/`diff` against a previously trusted manifest |
 | **v0.3** | Dynamic confused-deputy check — a real target LLM wrapped in a tool-use loop against the live server's real manifest, tool-output injection test — `--dynamic` |
 | **v0.4** | Streamable HTTP transport — `--url` scans a remote/hosted MCP server, not just a local stdio process |
+| **v0.5** | Finding-suppression policy — `--policy policy.json` silences reviewed/accepted findings so `--fail-on` is actually usable as a CI gate |
 
 ---
 
@@ -78,7 +79,41 @@ mcpaudit scan --json report.json --fail-on high -- python my_server.py
 # rug-pull detection
 mcpaudit baseline -o approved.json -- python my_server.py
 mcpaudit diff approved.json -- python my_server.py   # later, on the same or updated server
+
+# suppress findings you've reviewed and accepted, so --fail-on stays usable in CI
+mcpaudit scan --policy policy.json --fail-on high -- python my_server.py
 ```
+
+## Suppressing accepted findings
+
+A real scan against real software (see below) turns up findings that are true but
+already known and accepted -- e.g. a tool's schema can't express a runtime `--allowed-dir`
+restriction, so `permission_scope` will always flag it, even though the server actually
+scopes access correctly. Without a way to say "I looked at this, it's fine," `--fail-on`
+becomes unusable in CI: the first accepted finding blocks every future run forever.
+
+A policy file records that review, per `(tool, check[, title])`, so re-scans stay quiet
+on exactly that finding while anything new still surfaces:
+
+```json
+{
+  "ignore": [
+    {
+      "tool": "*",
+      "check": "permission_scope",
+      "title": "Unscoped filesystem access",
+      "reason": "why this is accepted -- shown for humans, not enforced"
+    }
+  ]
+}
+```
+
+`tool: "*"` matches any tool; omitting `title` matches any finding for that `(tool, check)`.
+See [`samples/example-policy.json`](samples/example-policy.json) for the policy used against
+the real filesystem-server scan below. Suppressed findings are dropped before the printed
+report, `--json`, and `--fail-on` all see them -- a suppressed CRITICAL will not fail a build.
+`baseline`/`diff` intentionally do NOT take `--policy`: the whole point of rug-pull detection
+is catching *unexpected change*, so it should never go quiet.
 
 ## CLI reference
 
@@ -90,6 +125,7 @@ mcpaudit scan [OPTIONS] (-- <server command> | --url <endpoint>)
   --dynamic            also run the confused-deputy check against a real target model
   --target groq/MODEL  target for --dynamic [default: groq/openai/gpt-oss-120b]
   --tool NAME          restrict --dynamic to one tool [default: every tool in the manifest]
+  --policy PATH        JSON file of reviewed/accepted findings to suppress (see samples/example-policy.json)
 
 mcpaudit baseline [OPTIONS] (-- <server command> | --url <endpoint>)
   --out PATH          where to save the manifest snapshot [default: mcpaudit-baseline.json]

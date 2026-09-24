@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcpaudit"
-version = "0.4.0"
+version = "0.5.0"
 description = "Security scanner for MCP server tool surfaces -- tool poisoning, over-broad scope, rug-pulls, and tool-output confused-deputy testing."
 readme = "README.md"
 license = { text = "MIT" }

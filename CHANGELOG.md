@@ -5,6 +5,37 @@ stage is a small, working, tested slice rather than one big-bang commit.
 
 ## [Unreleased]
 
+## [0.5.0] -- Finding-suppression policy
+- `mcpaudit/policy.py`: `PolicyRule` (matches on `tool` ["*" wildcard
+  supported], optional `check`, optional exact `title`) and `Policy`
+  (loads an `{"ignore": [...]}` JSON file, `.apply(findings) -> (kept,
+  suppressed)`).
+- `mcpaudit scan --policy PATH`: suppressed findings are dropped before
+  the printed report, `--json`, and `--fail-on` all see them, with a
+  one-line summary of how many were suppressed and by which file. Not
+  added to `baseline`/`diff` -- rug-pull detection's whole point is
+  catching *unexpected* change, so it should never go quiet.
+- `samples/example-policy.json`: a real policy suppressing the 9
+  "Unscoped filesystem access" findings from the official
+  `@modelcontextprotocol/server-filesystem` scan (see "Validated against
+  real software" below and in README.md) -- documents why that finding
+  is a known limitation of static schema analysis rather than a real gap
+  in that server.
+- 7 new tests (`tests/test_policy.py`): exact tool+check match, wildcard
+  tool, title-narrowed match, check-only rule, multiple rules OR'd
+  together, and loading a policy from a JSON file end-to-end.
+- Motivation: every real scan (e.g. against the real filesystem server)
+  produces the same accepted findings on every run with no way to say
+  "reviewed, this is fine" -- which is what actually makes `--fail-on`
+  unusable as a CI gate in practice. This is the standard mechanism real
+  scanners ship (bandit's `# nosec`, semgrep's `.semgrepignore`-style
+  rules) applied to mcpaudit's finding shape.
+
+46 tests total (was 39). CLI smoke-tested against `samples/malicious_server`:
+a policy suppressing `description_scan` findings leaves `permission_scope`
+findings untouched; a policy suppressing everything flips `--fail-on high`
+from exit 1 to exit 0; no policy passed behaves exactly as before.
+
 ## [0.4.0] -- Streamable HTTP transport
 - `HttpMCPClient`: speaks MCP's current Streamable HTTP transport (a
   single POST endpoint, `application/json` or one-shot `text/event-stream`

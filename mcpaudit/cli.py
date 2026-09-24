@@ -8,7 +8,8 @@ mcpaudit -- security scanner for MCP server tool surfaces.
 v0.1: static checks (description_scan, permission_scope).
 v0.2: baseline/diff (rug-pull detection).
 v0.3: --dynamic confused-deputy check against a live target model.
-v0.4: --url for MCP's Streamable HTTP transport, not just local stdio. <- current
+v0.4: --url for MCP's Streamable HTTP transport, not just local stdio.
+v0.5: --policy to suppress reviewed/accepted findings (CI-gate friendly). <- current
 See CHANGELOG.md.
 """
 
@@ -31,6 +32,7 @@ from mcpaudit.checks.confused_deputy import run_confused_deputy_check, to_findin
 from mcpaudit.findings import Finding
 from mcpaudit.manifest import ServerManifest
 from mcpaudit.mcp_client import MCPClient, StdioMCPClient, HttpMCPClient
+from mcpaudit.policy import Policy
 from mcpaudit.report import render_text, to_json, risk_score
 
 app = typer.Typer(
@@ -103,6 +105,11 @@ def scan(
         None, "--tool", help="Which tool to run the confused-deputy trial against "
                               "[default: every tool in the manifest]."
     ),
+    policy_file: Optional[Path] = typer.Option(
+        None, "--policy", help="JSON file of reviewed/accepted findings to suppress "
+                                "(see samples/example-policy.json). Suppressed findings are "
+                                "dropped before rendering, --json, and --fail-on."
+    ),
 ):
     """Fetch a server's tool manifest and run the static checks against it (add --dynamic for the
     confused-deputy check, which also needs a live target model)."""
@@ -117,7 +124,19 @@ def scan(
     if dynamic:
         findings += asyncio.run(_run_dynamic_check(manifest, target, dynamic_tool))
 
+    suppressed: list[Finding] = []
+    if policy_file:
+        try:
+            policy = Policy.load(policy_file)
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[red]Could not read policy file:[/] {exc}")
+            raise typer.Exit(2)
+        findings, suppressed = policy.apply(findings)
+
     console.print(render_text(manifest.server_name, findings))
+
+    if suppressed:
+        console.print(f"[dim]{len(suppressed)} finding(s) suppressed by policy ({policy_file})[/]")
 
     if json_out:
         json_out.write_text(to_json(manifest.server_name, findings), encoding="utf-8")
