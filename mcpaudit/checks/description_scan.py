@@ -21,10 +21,30 @@ from mcpaudit.manifest import ServerManifest
 # a scanner whose job is "flag for human review", not "auto-block".
 _IMPERATIVE_PATTERNS = [
     (r"\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b", "instruction-override phrasing"),
-    (r"\bdo\s+not\s+(tell|inform|mention|show)\s+the\s+user\b", "instructs the model to hide something from the user"),
-    (r"\balways\s+call\s+this\s+tool\s+first\b", "coerces tool-call ordering"),
+    # v0.6: widened from a literal "mention the user" -- real-world and
+    # adversarially-generated phrasing routinely puts a few words between
+    # the verb and "the user" ("mention IT TO the user", "tell the user
+    # ABOUT this"). Bounded gap (.{0,20}) keeps this from matching across
+    # an entire unrelated sentence.
+    (r"\b(do\s+not|don'?t|never)\s+(tell|inform|mention|show|disclose|notify).{0,20}\bthe\s+user\b",
+     "instructs the model to hide something from the user"),
+    # v0.6: "this tool" was too literal -- a self-poisoning tool typically
+    # names ITSELF ("always call the delete_all_files tool first"), not
+    # "this tool". Match either phrasing.
+    (r"\balways\s+call\s+(this|the)\s+[\w-]*\s*tool\s+first\b", "coerces tool-call ordering"),
     (r"\bbefore\s+using\s+any\s+other\s+tools?\b", "coerces tool-call ordering"),
-    (r"\byou\s+must\s+(always|never)\b", "imperative directive aimed at the model"),
+    # v0.6: "you must" was too literal -- passive/impersonal phrasing
+    # ("this tool must be invoked...", "must be called on every request")
+    # carries the same coercive weight without ever saying "you".
+    (r"\b(you\s+)?must\s+(always|never)\b", "imperative directive aimed at the model"),
+    (r"\bmust\s+be\s+(invoked|called|used|run)\b.{0,40}\b(every|each|regardless|all)\b",
+     "imperative directive aimed at the model (passive phrasing)"),
+    (r"\bregardless\s+of\s+what\s+(was|is)\s+asked\b", "instructs the model to disregard user intent"),
+    # v0.6: "call this tool silently" style phrasing -- coercive secrecy
+    # about the tool CALL itself, distinct from the "hide it from the
+    # user" pattern above (that one needs "the user" explicitly present).
+    (r"\b(call|invoke|run|use)\b.{0,25}\bsilently\b|\bsilently\b.{0,25}\b(call|invoke|run|use)\b",
+     "instructs the model to act without visible acknowledgment"),
     (r"\bthis\s+is\s+(a\s+)?(system|admin|override)\s+(message|instruction)\b", "claims elevated authority"),
     (r"<\s*(system|instructions?|important)\s*>", "embedded fake system/instruction tag"),
     (r"\bsend\s+(the\s+)?(contents?|results?|data|output)\s+to\s+https?://", "exfiltration-shaped instruction"),

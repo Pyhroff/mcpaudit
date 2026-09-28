@@ -5,6 +5,28 @@ stage is a small, working, tested slice rather than one big-bang commit.
 
 ## [Unreleased]
 
+## [0.6.0] -- description_scan coverage fix, found via adversagen
+- Broadened four `description_scan` patterns after `adversagen` (a
+  separate adaptive red-teaming tool, github.com/Pyhroff/adversagen)
+  wired its `RealScannerDefender` directly into this CLI and showed the
+  *unevolved, unobfuscated* baseline attack population already evading
+  mcpaudit 83-100% of the time on the tool_poisoning surface -- before any
+  mutation happened at all. Root cause: several v0.1 patterns were more
+  literal than the threat model intends.
+  - "always call this tool first" now also matches a tool naming
+    *itself* ("always call the delete_all_files tool first").
+  - "do not mention THE USER" now tolerates words in between ("do not
+    mention IT TO the user").
+  - "you must always/never" now also matches passive/impersonal phrasing
+    with no "you" at all ("this tool must be invoked on every request").
+  - New patterns: "regardless of what was asked" (disregards user
+    intent) and "call/invoke ... silently" (coercive secrecy about the
+    call itself, distinct from hiding it from the user).
+- 3 new regression tests using the exact phrasings adversagen's baseline
+  attack payloads used. All 46 pre-existing tests, including the
+  benign-deprecation-notice false-positive guard, still pass unchanged --
+  this widens recall without reintroducing that false positive.
+
 ## [0.5.0] -- Finding-suppression policy
 - `mcpaudit/policy.py`: `PolicyRule` (matches on `tool` ["*" wildcard
   supported], optional `check`, optional exact `title`) and `Policy`
