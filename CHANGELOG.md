@@ -3,6 +3,16 @@
 This project is built as an explicit version-incremental prototype: each
 stage is a small, working, tested slice rather than one big-bang commit.
 
+## v0.7.0 (patch, from a 90-repo public scan)
+
+Driven by hand-labelled findings from scanning 90 public MCP-server repos (see mcp-scan-study/REPORT.md).
+
+- permission_scope: risk category now derived from tool name + first sentence of the description, not the whole description.
+- permission_scope: parameter-name matching is per category (fs: path/file/dir, network: url/uri/endpoint/host, exec: cmd/command/script/code/query/...).
+- permission_scope: in-application paths (node/menu/parent/asset/prefab/clip/json/key/pattern/reference/relative) no longer count as filesystem paths; bare "run" no longer implies command execution.
+- description_scan: "Cross-tool instruction" is LOW (was MEDIUM) when the wording is ordering guidance (first/before/after/prerequisite/then).
+- Measured on 40 held-out labelled findings: strict precision of HIGH permission_scope 37.5% -> 64.3% (n=14 remaining, 95% CI 39-84%); false positives removed 87.5%; accurate findings retained 60% (recall cost, known).
+
 ## [Unreleased]
 
 ## [0.6.0] -- description_scan coverage fix, found via adversagen
