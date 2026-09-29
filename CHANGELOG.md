@@ -1,7 +1,6 @@
 # Changelog
 
-This project is built as an explicit version-incremental prototype: each
-stage is a small, working, tested slice rather than one big-bang commit.
+Notable changes by version.
 
 ## v0.7.0 (patch, from a 90-repo public scan)
 
