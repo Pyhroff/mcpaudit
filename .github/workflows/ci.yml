@@ -14,3 +14,41 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: pytest -q
+
+  cross-repo-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mcpaudit
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Pyhroff/agent-test-range
+          path: agent-test-range
+          token: ${{ secrets.TOOLS_PAT }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Pyhroff/memsentry
+          path: memsentry
+          token: ${{ secrets.TOOLS_PAT }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Pyhroff/ragsentry
+          path: ragsentry
+          token: ${{ secrets.TOOLS_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install this commit's mcpaudit alongside the other two scanners
+        run: |
+          pip install -e mcpaudit -e memsentry -e ragsentry
+
+      - name: Run agent-test-range's regression harness against this commit
+        run: |
+          cd agent-test-range
+          python3 scripts/run_range.py
