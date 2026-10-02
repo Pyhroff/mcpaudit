@@ -3,13 +3,24 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcpaudit"
+name = "pyhroff-mcpaudit"
 version = "0.7.0"
 description = "Security scanner for MCP server tool surfaces -- tool poisoning, over-broad scope, rug-pulls, and tool-output confused-deputy testing."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Pyhroff" }]
 requires-python = ">=3.10"
+keywords = ["MCP", "tool poisoning", "prompt injection", "security scanner", "LLM agents"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
 dependencies = [
     "typer>=0.12",
     "rich>=13",
@@ -19,6 +30,11 @@ dependencies = [
 http = ["httpx>=0.27"]
 dynamic = ["groq>=0.9"]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4", "httpx>=0.27"]
+
+[project.urls]
+Homepage = "https://github.com/Pyhroff/mcpaudit"
+Issues = "https://github.com/Pyhroff/mcpaudit/issues"
+Changelog = "https://github.com/Pyhroff/mcpaudit/blob/main/CHANGELOG.md"
 
 [project.scripts]
 mcpaudit = "mcpaudit.cli:app"

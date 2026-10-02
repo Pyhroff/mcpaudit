@@ -17,6 +17,14 @@ An MCP server ships tool descriptions that the client passes to the model as con
 
 ## Install
 
+From PyPI:
+
+```bash
+pip install pyhroff-mcpaudit          # installs the `mcpaudit` command; the Python package is still `mcpaudit`
+```
+
+From source:
+
 ```bash
 git clone https://github.com/Pyhroff/mcpaudit.git
 cd mcpaudit
