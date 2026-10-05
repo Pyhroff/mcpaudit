@@ -26,12 +26,6 @@ It is the **MCP module inside [aisec-suite](https://github.com/Pyhroff/aisec-sui
 pip install pyhroff-mcpaudit
 ```
 
-From source:
-
-```bash
-pip install -e ".[dev,dynamic]"
-```
-
 ## Usage
 
 ```bash
@@ -58,9 +52,9 @@ GROQ_API_KEY=... mcpaudit scan --dynamic -- python my_server.py
 aisec scan .
 ```
 
-The umbrella uses source extraction plus mcpaudit's static checks and adds structural poisoning analysis and reachability annotations.
+The umbrella adds repository-level extraction, structural poisoning analysis, and reachability annotations around the static mcpaudit checks.
 
-Use `mcpaudit` directly when you need its live-server URL workflow, baseline/diff workflow, or dynamic confused-deputy test.
+Use `mcpaudit` directly for live-server workflows and its dynamic confused-deputy experiment.
 
 ## Security model
 
