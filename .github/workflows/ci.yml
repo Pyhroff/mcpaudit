@@ -20,4 +20,7 @@ jobs:
       - run: pytest -q
 
   cross-repo-regression:
-    uses: Pyhroff/agent-test-range/.github/actions/run-range@d6f026e46dbbab197f2b4ec03a91354ab810039a
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run shared regression range
+        uses: Pyhroff/agent-test-range/.github/actions/run-range@d6f026e46dbbab197f2b4ec03a91354ab810039a
