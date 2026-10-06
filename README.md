@@ -69,3 +69,12 @@ pytest -q
 ## License
 
 MIT
+
+
+## CI and cross-repository regression
+
+The project participates in the shared `agent-test-range` regression suite. CI runs the local test matrix and then exercises the scanner against the controlled integration corpus through a private composite install action.
+
+Cross-repository installation no longer requires a long-lived `TOOLS_PAT` checkout credential. The shared action is pinned to an immutable commit and GitHub supplies a short-lived scoped installation token for private-action access.
+
+This keeps regression testing reproducible while reducing credential exposure in CI.
