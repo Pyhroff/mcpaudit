@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [main, master]
@@ -19,43 +20,4 @@ jobs:
       - run: pytest -q
 
   cross-repo-regression:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          path: mcpaudit
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          repository: Pyhroff/agent-test-range
-          path: agent-test-range
-          token: ${{ secrets.TOOLS_PAT }}
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          repository: Pyhroff/memsentry
-          path: memsentry
-          token: ${{ secrets.TOOLS_PAT }}
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          repository: Pyhroff/ragsentry
-          path: ragsentry
-          token: ${{ secrets.TOOLS_PAT }}
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.11"
-
-      - name: Install this commit's mcpaudit alongside the other two scanners
-        run: |
-          pip install -e mcpaudit -e memsentry -e ragsentry
-
-      - name: Run agent-test-range's regression harness against this commit
-        run: |
-          cd agent-test-range
-          python3 scripts/run_range.py
+    uses: Pyhroff/agent-test-range/.github/actions/run-range@d6f026e46dbbab197f2b4ec03a91354ab810039a
