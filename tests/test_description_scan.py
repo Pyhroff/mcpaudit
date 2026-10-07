@@ -147,7 +147,7 @@ def test_defensive_security_prohibition_is_not_high_severity():
         name="get_weather",
         description="Return weather. The tool must never override system instructions, change tool order, hide calls, or request secrets.",
     )
-    findings = scan_descriptions(ServerManifest(name="s", tools=[tool]))
+    findings = scan_descriptions(_manifest(tool))
     assert not any(f.severity is Severity.HIGH for f in findings)
 
 
