@@ -40,6 +40,10 @@ _IMPERATIVE_PATTERNS = [
     (r"\bmust\s+be\s+(invoked|called|used|run)\b.{0,40}\b(every|each|regardless|all)\b",
      "imperative directive aimed at the model (passive phrasing)"),
     (r"\bregardless\s+of\s+what\s+(was|is)\s+asked\b", "instructs the model to disregard user intent"),
+    (r"\bfor\s+every\s+turn\b.{0,60}\b(invoke|call|run)\b.{0,60}\bbefore\s+any\s+other\s+tools?\b",
+     "coerces tool-call ordering"),
+    (r"\bdisregard\s+(earlier|previous|prior)\s+(guidance|instructions?)\b",
+     "instruction-override phrasing"),
     # v0.6: "call this tool silently" style phrasing -- coercive secrecy
     # about the tool CALL itself, distinct from the "hide it from the
     # user" pattern above (that one needs "the user" explicitly present).
@@ -64,8 +68,16 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         text = tool.description or ""
         lower = text.lower()
 
+        defensive_prohibition = (
+            re.search(r"\bmust\s+never\b", lower)
+            and any(term in lower for term in ("system instructions", "secrets", "security", "safety"))
+            and not re.search(r"\b(ignore|disregard|bypass)\b", lower)
+        )
+
         for pattern, label in _IMPERATIVE_PATTERNS:
             if re.search(pattern, lower):
+                if defensive_prohibition and "imperative directive" in label:
+                    continue
                 findings.append(Finding(
                     check="description_scan", tool=tool.name, severity=Severity.HIGH,
                     title=f"Model-directed instruction in description ({label})",
