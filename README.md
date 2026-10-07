@@ -244,6 +244,17 @@ mcpaudit/
 
 The projects are intentionally separated by attack surface so individual scanners can remain focused and composable.
 
+
+
+## Security research & evaluation
+
+This project documents its security boundary explicitly:
+
+- [Threat model](docs/THREAT_MODEL.md)
+- [Evaluation methodology](docs/EVALUATION.md)
+
+The intended evidence chain is **threat → fixture → detector → benchmark → limitation**, so scan results are reproducible rather than presented as universal security guarantees.
+
 ## License
 
 MIT
