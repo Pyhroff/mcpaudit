@@ -2,6 +2,16 @@
 
 Notable changes by version.
 
+## v0.8.0
+
+- **SARIF v2.1.0 Export**: Added `--sarif <path>` flag to `mcpaudit scan` for direct integration with GitHub Code Scanning, Security tabs, and standard SARIF consumers.
+- **Synchronized Version Metadata**: Aligned `pyproject.toml`, `mcpaudit.__version__`, and `mcp_client._CLIENT_INFO` to unified version `0.8.0`.
+- **Expanded Heuristic Prompt Injection & Guardrail Bypass Detection**:
+  - Added detection patterns for safety-bypass directives (`bypass/disable/override safety/filters/guardrails`).
+  - Added detection for jailbreak-style model mode manipulation (`act in developer mode`).
+  - Added detection for logging and audit trail evasion directives (`do not/never log/audit this call`).
+- Added test suite coverage for SARIF report formatting and new prompt injection detection patterns.
+
 ## v0.7.0 (patch, from a 90-repo public scan)
 
 Driven by hand-labelled findings from scanning 90 public MCP-server repos (see mcp-scan-study/REPORT.md).

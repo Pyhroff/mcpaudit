@@ -33,7 +33,7 @@ from mcpaudit.findings import Finding
 from mcpaudit.manifest import ServerManifest
 from mcpaudit.mcp_client import MCPClient, StdioMCPClient, HttpMCPClient
 from mcpaudit.policy import Policy
-from mcpaudit.report import render_text, to_json, risk_score
+from mcpaudit.report import render_text, to_json, to_sarif, risk_score
 
 app = typer.Typer(
     name="mcpaudit",
@@ -90,6 +90,7 @@ def scan(
                              "instead of launching a local stdio process."
     ),
     json_out: Optional[Path] = typer.Option(None, "--json", help="Write JSON scorecard to this path"),
+    sarif_out: Optional[Path] = typer.Option(None, "--sarif", help="Write SARIF v2.1.0 report to this path (for GitHub Security / CI)"),
     fail_on: Optional[str] = typer.Option(
         None, "--fail-on", help="Exit 1 if any finding at/above this severity (low|medium|high|critical). "
                                  "For CI gates."
@@ -141,6 +142,10 @@ def scan(
     if json_out:
         json_out.write_text(to_json(manifest.server_name, findings), encoding="utf-8")
         console.print(f"\n[dim]JSON scorecard written to {json_out}[/]")
+
+    if sarif_out:
+        sarif_out.write_text(to_sarif(manifest.server_name, findings), encoding="utf-8")
+        console.print(f"\n[dim]SARIF report written to {sarif_out}[/]")
 
     if fail_on:
         order = ["low", "medium", "high", "critical"]

@@ -25,7 +25,7 @@ MCP servers turn **tool names, descriptions, schemas, and tool output into model
 
 It is the MCP-focused scanner inside [aisec-suite](https://github.com/Pyhroff/aisec-suite), but can also be used independently.
 
-> **Status:** Beta · Python 3.10+ · version 0.7.0
+> **Status:** Beta · Python 3.10+ · version 0.8.0
 
 ## What it actually scans
 
@@ -98,10 +98,12 @@ mcpaudit scan --url https://example.com/mcp
 ```bash
 mcpaudit scan \
   --json report.json \
+  --sarif report.sarif \
   --fail-on high \
   -- python my_server.py
 ```
 
+`--sarif` generates standard OASIS SARIF v2.1.0 JSON reports compatible with GitHub Advanced Security / Code Scanning.
 `--fail-on` makes the scanner useful as a CI gate: the command exits non-zero when a finding meets or exceeds the selected severity.
 
 ### Track tool-manifest drift

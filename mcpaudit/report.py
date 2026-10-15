@@ -34,6 +34,69 @@ def to_json(server_name: str, findings: list[Finding]) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
+def to_sarif(server_name: str, findings: list[Finding]) -> str:
+    """Format findings as standard SARIF v2.1.0 JSON for GitHub Security and CI tools."""
+    findings = sort_findings(findings)
+
+    sarif_level_map = {
+        Severity.CRITICAL: "error",
+        Severity.HIGH: "error",
+        Severity.MEDIUM: "warning",
+        Severity.LOW: "note",
+    }
+
+    results = []
+    rules = {}
+    for f in findings:
+        rule_id = f"{f.check}/{f.title.lower().replace(' ', '-')}"
+        if rule_id not in rules:
+            rules[rule_id] = {
+                "id": rule_id,
+                "name": f.title,
+                "shortDescription": {"text": f.title},
+                "defaultConfiguration": {"level": sarif_level_map.get(f.severity, "warning")},
+            }
+
+        results.append({
+            "ruleId": rule_id,
+            "level": sarif_level_map.get(f.severity, "warning"),
+            "message": {"text": f.detail},
+            "locations": [
+                {
+                    "logicalLocations": [
+                        {
+                            "name": f.tool,
+                            "kind": "function" if f.tool != "*" else "module",
+                        }
+                    ]
+                }
+            ],
+            "properties": {
+                "severity": f.severity.value,
+                "tool": f.tool,
+                "check": f.check,
+            },
+        })
+
+    sarif_doc = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "mcpaudit",
+                        "informationUri": "https://github.com/Pyhroff/mcpaudit",
+                        "rules": list(rules.values()),
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+    return json.dumps(sarif_doc, indent=2)
+
+
 def render_text(server_name: str, findings: list[Finding]) -> str:
     findings = sort_findings(findings)
     lines = [f"mcpaudit scorecard -- {server_name}", "=" * 60]
