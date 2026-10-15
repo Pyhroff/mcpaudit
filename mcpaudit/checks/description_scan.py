@@ -53,6 +53,9 @@ _IMPERATIVE_PATTERNS = [
     (r"<\s*(system|instructions?|important)\s*>", "embedded fake system/instruction tag"),
     (r"\bsend\s+(the\s+)?(contents?|results?|data|output)\s+to\s+https?://", "exfiltration-shaped instruction"),
     (r"\bdisregard\s+(the\s+)?(system\s+prompt|user'?s?\s+request)\b", "instruction-override phrasing"),
+    (r"\b(bypass|disable|override|turn\s+off)\s+(all\s+)?(safety|guardrails?|filters?|rules?|policies)\b", "safety-bypass directive"),
+    (r"\b(act|operate|behave)\s+in\s+developer\s+mode\b", "jailbreak-style role directive"),
+    (r"\b(do\s+not|never)\s+(log|audit|record|trace)\s+(this|the)\s+call\b", "instructs the model to evade logging/audit"),
 ]
 
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious

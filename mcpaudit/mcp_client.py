@@ -44,7 +44,7 @@ class MCPClient(Protocol):
     async def call_tool(self, name: str, args: dict[str, Any]) -> ToolCallResult: ...
 
 
-_CLIENT_INFO = {"name": "mcpaudit", "version": "0.4.0"}
+_CLIENT_INFO = {"name": "mcpaudit", "version": "0.8.0"}
 _PROTOCOL_VERSION = "2024-11-05"
 
 
