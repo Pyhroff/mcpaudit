@@ -1,0 +1,3 @@
+## 2025-05-18 - Pre-compiled regexes and substring checks in static scan loops
+**Learning:** In Python static security scanners processing tool manifests or lists of items, repeatedly passing raw regex strings to `re.search()` inside nested loops forces Python's `re` module to look up and compile patterns in `re._cache`, incurring significant overhead when scanning hundreds of tools. Additionally, dynamic regex generation for cross-references can be bypassed in most cases with a simple `in` substring check.
+**Action:** Pre-compile static regex patterns at module load time and use fast string search (`if substring in text:`) before performing regex searches inside loops.
