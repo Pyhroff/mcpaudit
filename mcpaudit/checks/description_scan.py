@@ -19,7 +19,8 @@ from mcpaudit.manifest import ServerManifest
 # Phrases that target the model's behavior rather than describe the tool.
 # Deliberately broad/heuristic -- false positives are expected and fine for
 # a scanner whose job is "flag for human review", not "auto-block".
-_IMPERATIVE_PATTERNS = [
+# Pre-compile regex patterns at module level to avoid repeated compilation in scan loops.
+_RAW_IMPERATIVE_PATTERNS = [
     (r"\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b", "instruction-override phrasing"),
     # v0.6: widened from a literal "mention the user" -- real-world and
     # adversarially-generated phrasing routinely puts a few words between
@@ -58,8 +59,13 @@ _IMPERATIVE_PATTERNS = [
     (r"\b(do\s+not|never)\s+(log|audit|record|trace)\s+(this|the)\s+call\b", "instructs the model to evade logging/audit"),
 ]
 
+_IMPERATIVE_PATTERNS = [(re.compile(p), label) for p, label in _RAW_IMPERATIVE_PATTERNS]
+
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
-_ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
+_MUST_NEVER_RE = re.compile(r"\bmust\s+never\b")
+_IGNORE_DISREGARD_BYPASS_RE = re.compile(r"\b(ignore|disregard|bypass)\b")
+_ORDERING_RE = re.compile(r"\b(first|before|after|prior|prerequisite|then|only after)\b")
 
 
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
@@ -72,13 +78,13 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         lower = text.lower()
 
         defensive_prohibition = (
-            re.search(r"\bmust\s+never\b", lower)
+            _MUST_NEVER_RE.search(lower)
             and any(term in lower for term in ("system instructions", "secrets", "security", "safety"))
-            and not re.search(r"\b(ignore|disregard|bypass)\b", lower)
+            and not _IGNORE_DISREGARD_BYPASS_RE.search(lower)
         )
 
         for pattern, label in _IMPERATIVE_PATTERNS:
-            if re.search(pattern, lower):
+            if pattern.search(lower):
                 if defensive_prohibition and "imperative directive" in label:
                     continue
                 findings.append(Finding(
@@ -114,20 +120,30 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # use X instead"), which is not the pattern this check is for. Caught
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
-        for other in known_tool_names:
-            if other != tool.name and other and re.search(
-                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
-                lower,
-            ):
-                # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
-                # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
-                ordering = re.search(r"\b(first|before|after|prior|prerequisite|then|only after)\b", lower)
-                findings.append(Finding(
-                    check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
-                    title="Cross-tool instruction",
-                    detail=f"Tool '{tool.name}' description references another tool ('{other}') "
-                           f"with directive language -- possible cross-tool poisoning.",
-                ))
+        #
+        # Performance optimization:
+        # Check `"must" in lower or "always" in lower` first. If neither coercive keyword is present,
+        # skip the O(N) regex evaluation across known tool names entirely.
+        if "must" in lower or "always" in lower:
+            for other in known_tool_names:
+                if (
+                    other != tool.name
+                    and other
+                    and other.lower() in lower
+                    and re.search(
+                        rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                        lower,
+                    )
+                ):
+                    # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
+                    # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
+                    ordering = _ORDERING_RE.search(lower)
+                    findings.append(Finding(
+                        check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
+                        title="Cross-tool instruction",
+                        detail=f"Tool '{tool.name}' description references another tool ('{other}') "
+                               f"with directive language -- possible cross-tool poisoning.",
+                    ))
 
         if not text.strip():
             findings.append(Finding(
