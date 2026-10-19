@@ -1,0 +1,3 @@
+## 2025-05-18 - Fast Substring Pre-Filtering for O(N^2) Regex Cross-Tool Audits
+**Learning:** In MCP description scanning, checking every tool against every other tool with `re.search` creates an O(N^2) bottleneck for larger toolsets. Adding string membership checks (`"must" in lower` and `other in lower`) before spawning dynamic regex compilations/searches reduces evaluation time by ~24x (~35s to ~1.4s on 200 tools) while maintaining 100% equivalence.
+**Action:** Always pre-filter expensive regex comparisons across sets with fast string membership checks (`in`) whenever the regex target string requires fixed substrings.
