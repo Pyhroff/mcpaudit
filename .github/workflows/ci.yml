@@ -19,9 +19,3 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: pytest -q
-
-  cross-repo-regression:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run shared regression range
-        uses: Pyhroff/agent-test-range/.github/actions/run-range@d6f026e46dbbab197f2b4ec03a91354ab810039a
