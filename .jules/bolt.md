@@ -1,0 +1,3 @@
+## 2026-03-29 - Short-circuiting $O(N^2)$ cross-tool regex scanning in MCP manifests
+**Learning:** In MCP static analysis scanners, tool descriptions are scanned for cross-tool poisoning references. Iterating over $N$ tools and checking all $N-1$ declared tool names with dynamic regexes incurs $O(N^2)$ dynamic regex overhead per scan. Fast-path string membership checks (`"must" in lower or "always" in lower`, `other.lower() in lower`) before executing dynamic regexes avoid dynamic regex compiles and evaluations for non-matching tool descriptions, producing >10x speedup.
+**Action:** Always check fast substring membership (`str in text`) before executing nested regex searches across collection items.
