@@ -31,8 +31,7 @@ jobs:
           evidence=""
           for id in $failed; do
             log="$(gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null | tail -n 160 || true)"
-            evidence="$evidence
-$log"
+            evidence="${evidence}"$'\n'"${log}"
           done
 
           category="unknown"
