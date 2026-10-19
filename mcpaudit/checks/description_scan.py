@@ -70,8 +70,8 @@ _ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
     findings: list[Finding] = []
 
-    # OPTIMIZATION: Use list of valid tool names to iterate directly
-    known_tool_names = [t.name for t in manifest.tools if t.name]
+    # OPTIMIZATION: Store lowercased tool names alongside original name
+    known_tool_names = [(t.name, t.name.lower()) for t in manifest.tools if t.name]
 
     for tool in manifest.tools:
         text = tool.description or ""
@@ -120,11 +120,11 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # use X instead"), which is not the pattern this check is for. Caught
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
-        for other in known_tool_names:
-            # OPTIMIZATION: Fast string check before regex construction and execution avoids
+        for other_orig, other_lower in known_tool_names:
+            # OPTIMIZATION: Fast lowercased string check before regex construction and execution avoids
             # unnecessary `re.escape` and string pattern parsing when `other` tool name is not in description.
-            if other != tool.name and other in lower:
-                escaped_other = re.escape(other)
+            if other_orig != tool.name and other_lower in lower:
+                escaped_other = re.escape(other_lower)
                 pattern = (
                     rf"\b{escaped_other}\b.{{0,40}}\b(must|always)\b|"
                     rf"\b(must|always)\b.{{0,40}}\b{escaped_other}\b"
@@ -136,7 +136,7 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
                     findings.append(Finding(
                         check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
                         title="Cross-tool instruction",
-                        detail=f"Tool '{tool.name}' description references another tool ('{other}') "
+                        detail=f"Tool '{tool.name}' description references another tool ('{other_orig}') "
                                f"with directive language -- possible cross-tool poisoning.",
                     ))
 
