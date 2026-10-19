@@ -59,7 +59,7 @@ _IMPERATIVE_PATTERNS = [
 ]
 
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
-_ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 
 # Performance optimization: pre-compile static regexes at module load time
 # to avoid re-compiling during scanning loops across many tools.
