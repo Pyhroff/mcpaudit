@@ -71,8 +71,8 @@ _ORDERING_RE = re.compile(r"\b(first|before|after|prior|prerequisite|then|only a
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
     findings: list[Finding] = []
 
-    # Filter out empty tool names once before scanning
-    known_tool_names = [t.name for t in manifest.tools if t.name]
+    # Set of unique non-empty tool names for deduplication
+    known_tool_names = {t.name for t in manifest.tools if t.name}
 
     for tool in manifest.tools:
         text = tool.description or ""
@@ -122,9 +122,10 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # Performance optimization: fast substring check before constructing dynamic regexes.
         if "must" in lower or "always" in lower:
             for other in known_tool_names:
-                if other != tool.name and other in lower:
+                other_lower = other.lower()
+                if other != tool.name and other_lower in lower:
                     if re.search(
-                        rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                        rf"\b{re.escape(other_lower)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other_lower)}\b",
                         lower,
                     ):
                         # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance -> LOW; other coercion stays MEDIUM.
