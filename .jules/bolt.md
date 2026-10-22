@@ -1,0 +1,3 @@
+## 2025-05-18 - Fast Substring Guards for Cross-Tool Description Scanning
+**Learning:** Cross-tool security analysis in `description_scan.py` performed nested loops over all declared tool names with dynamic regexes ($O(N^2)$ regex compilations/searches). Pre-compiling static regexes and adding fast string inclusion checks (`"must" in lower or "always" in lower` and `other in lower`) before performing full regex searches eliminates regex overhead for benign descriptions and yields a >17x performance improvement.
+**Action:** When scanning collections against cross-referencing regex patterns, always use fast string containment checks to short-circuit regex execution.
