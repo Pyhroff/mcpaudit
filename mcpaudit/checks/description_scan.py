@@ -114,20 +114,24 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # use X instead"), which is not the pattern this check is for. Caught
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
-        for other in known_tool_names:
-            if other != tool.name and other and re.search(
-                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
-                lower,
-            ):
-                # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
-                # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
-                ordering = re.search(r"\b(first|before|after|prior|prerequisite|then|only after)\b", lower)
-                findings.append(Finding(
-                    check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
-                    title="Cross-tool instruction",
-                    detail=f"Tool '{tool.name}' description references another tool ('{other}') "
-                           f"with directive language -- possible cross-tool poisoning.",
-                ))
+        #
+        # Optimization: Pre-filter with fast substring `in` checks before constructing
+        # and compiling dynamic regexes in O(N^2) pairs of tools.
+        if "must" in lower or "always" in lower:
+            for other in known_tool_names:
+                if other != tool.name and other and other.lower() in lower and re.search(
+                    rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                    lower,
+                ):
+                    # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
+                    # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
+                    ordering = re.search(r"\b(first|before|after|prior|prerequisite|then|only after)\b", lower)
+                    findings.append(Finding(
+                        check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
+                        title="Cross-tool instruction",
+                        detail=f"Tool '{tool.name}' description references another tool ('{other}') "
+                               f"with directive language -- possible cross-tool poisoning.",
+                    ))
 
         if not text.strip():
             findings.append(Finding(
