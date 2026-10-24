@@ -125,7 +125,7 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # Fast substring pre-check: skip expensive regex search if "must" and "always" are missing.
         if "must" in lower or "always" in lower:
             for other in known_tool_names:
-                if other != tool.name and other and other in lower and re.search(
+                if other != tool.name and other and other.lower() in lower and re.search(
                     rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
                     lower,
                 ):
