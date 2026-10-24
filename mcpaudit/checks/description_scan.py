@@ -19,47 +19,55 @@ from mcpaudit.manifest import ServerManifest
 # Phrases that target the model's behavior rather than describe the tool.
 # Deliberately broad/heuristic -- false positives are expected and fine for
 # a scanner whose job is "flag for human review", not "auto-block".
+# Phrases that target the model's behavior rather than describe the tool.
+# Precompiled at module level for performance.
 _IMPERATIVE_PATTERNS = [
-    (r"\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b", "instruction-override phrasing"),
-    # v0.6: widened from a literal "mention the user" -- real-world and
-    # adversarially-generated phrasing routinely puts a few words between
-    # the verb and "the user" ("mention IT TO the user", "tell the user
-    # ABOUT this"). Bounded gap (.{0,20}) keeps this from matching across
-    # an entire unrelated sentence.
-    (r"\b(do\s+not|don'?t|never)\s+(tell|inform|mention|show|disclose|notify).{0,20}\bthe\s+user\b",
-     "instructs the model to hide something from the user"),
-    # v0.6: "this tool" was too literal -- a self-poisoning tool typically
-    # names ITSELF ("always call the delete_all_files tool first"), not
-    # "this tool". Match either phrasing.
-    (r"\balways\s+call\s+(this|the)\s+[\w-]*\s*tool\s+first\b", "coerces tool-call ordering"),
-    (r"\bbefore\s+using\s+any\s+other\s+tools?\b", "coerces tool-call ordering"),
-    # v0.6: "you must" was too literal -- passive/impersonal phrasing
-    # ("this tool must be invoked...", "must be called on every request")
-    # carries the same coercive weight without ever saying "you".
-    (r"\b(you\s+)?must\s+(always|never)\b", "imperative directive aimed at the model"),
-    (r"\bmust\s+be\s+(invoked|called|used|run)\b.{0,40}\b(every|each|regardless|all)\b",
-     "imperative directive aimed at the model (passive phrasing)"),
-    (r"\bregardless\s+of\s+what\s+(was|is)\s+asked\b", "instructs the model to disregard user intent"),
-    (r"\bfor\s+every\s+turn\b.{0,60}\b(invoke|call|run)\b.{0,60}\bbefore\s+any\s+other\s+tools?\b",
-     "coerces tool-call ordering"),
-    (r"\bdisregard\s+(earlier|previous|prior)\s+(guidance|instructions?)\b",
-     "instruction-override phrasing"),
-    # v0.6: "call this tool silently" style phrasing -- coercive secrecy
-    # about the tool CALL itself, distinct from the "hide it from the
-    # user" pattern above (that one needs "the user" explicitly present).
-    (r"\b(call|invoke|run|use)\b.{0,25}\bsilently\b|\bsilently\b.{0,25}\b(call|invoke|run|use)\b",
-     "instructs the model to act without visible acknowledgment"),
-    (r"\bthis\s+is\s+(a\s+)?(system|admin|override)\s+(message|instruction)\b", "claims elevated authority"),
-    (r"<\s*(system|instructions?|important)\s*>", "embedded fake system/instruction tag"),
-    (r"\bsend\s+(the\s+)?(contents?|results?|data|output)\s+to\s+https?://", "exfiltration-shaped instruction"),
-    (r"\bdisregard\s+(the\s+)?(system\s+prompt|user'?s?\s+request)\b", "instruction-override phrasing"),
-    (r"\b(bypass|disable|override|turn\s+off)\s+(all\s+)?(safety|guardrails?|filters?|rules?|policies)\b", "safety-bypass directive"),
-    (r"\b(act|operate|behave)\s+in\s+developer\s+mode\b", "jailbreak-style role directive"),
-    (r"\b(do\s+not|never)\s+(log|audit|record|trace)\s+(this|the)\s+call\b", "instructs the model to evade logging/audit"),
+    (re.compile(p), label)
+    for p, label in [
+        (r"\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b", "instruction-override phrasing"),
+        # v0.6: widened from a literal "mention the user" -- real-world and
+        # adversarially-generated phrasing routinely puts a few words between
+        # the verb and "the user" ("mention IT TO the user", "tell the user
+        # ABOUT this"). Bounded gap (.{0,20}) keeps this from matching across
+        # an entire unrelated sentence.
+        (r"\b(do\s+not|don'?t|never)\s+(tell|inform|mention|show|disclose|notify).{0,20}\bthe\s+user\b",
+         "instructs the model to hide something from the user"),
+        # v0.6: "this tool" was too literal -- a self-poisoning tool typically
+        # names ITSELF ("always call the delete_all_files tool first"), not
+        # "this tool". Match either phrasing.
+        (r"\balways\s+call\s+(this|the)\s+[\w-]*\s*tool\s+first\b", "coerces tool-call ordering"),
+        (r"\bbefore\s+using\s+any\s+other\s+tools?\b", "coerces tool-call ordering"),
+        # v0.6: "you must" was too literal -- passive/impersonal phrasing
+        # ("this tool must be invoked...", "must be called on every request")
+        # carries the same coercive weight without ever saying "you".
+        (r"\b(you\s+)?must\s+(always|never)\b", "imperative directive aimed at the model"),
+        (r"\bmust\s+be\s+(invoked|called|used|run)\b.{0,40}\b(every|each|regardless|all)\b",
+         "imperative directive aimed at the model (passive phrasing)"),
+        (r"\bregardless\s+of\s+what\s+(was|is)\s+asked\b", "instructs the model to disregard user intent"),
+        (r"\bfor\s+every\s+turn\b.{0,60}\b(invoke|call|run)\b.{0,60}\bbefore\s+any\s+other\s+tools?\b",
+         "coerces tool-call ordering"),
+        (r"\bdisregard\s+(earlier|previous|prior)\s+(guidance|instructions?)\b",
+         "instruction-override phrasing"),
+        # v0.6: "call this tool silently" style phrasing -- coercive secrecy
+        # about the tool CALL itself, distinct from the "hide it from the
+        # user" pattern above (that one needs "the user" explicitly present).
+        (r"\b(call|invoke|run|use)\b.{0,25}\bsilently\b|\bsilently\b.{0,25}\b(call|invoke|run|use)\b",
+         "instructs the model to act without visible acknowledgment"),
+        (r"\bthis\s+is\s+(a\s+)?(system|admin|override)\s+(message|instruction)\b", "claims elevated authority"),
+        (r"<\s*(system|instructions?|important)\s*>", "embedded fake system/instruction tag"),
+        (r"\bsend\s+(the\s+)?(contents?|results?|data|output)\s+to\s+https?://", "exfiltration-shaped instruction"),
+        (r"\bdisregard\s+(the\s+)?(system\s+prompt|user'?s?\s+request)\b", "instruction-override phrasing"),
+        (r"\b(bypass|disable|override|turn\s+off)\s+(all\s+)?(safety|guardrails?|filters?|rules?|policies)\b", "safety-bypass directive"),
+        (r"\b(act|operate|behave)\s+in\s+developer\s+mode\b", "jailbreak-style role directive"),
+        (r"\b(do\s+not|never)\s+(log|audit|record|trace)\s+(this|the)\s+call\b", "instructs the model to evade logging/audit"),
+    ]
 ]
 
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
-_ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
+_DEFENSIVE_MUST_NEVER_RE = re.compile(r"\bmust\s+never\b")
+_DEFENSIVE_OVERRIDE_RE = re.compile(r"\b(ignore|disregard|bypass)\b")
+_ORDERING_RE = re.compile(r"\b(first|before|after|prior|prerequisite|then|only after)\b")
 
 
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
@@ -72,13 +80,13 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         lower = text.lower()
 
         defensive_prohibition = (
-            re.search(r"\bmust\s+never\b", lower)
+            _DEFENSIVE_MUST_NEVER_RE.search(lower)
             and any(term in lower for term in ("system instructions", "secrets", "security", "safety"))
-            and not re.search(r"\b(ignore|disregard|bypass)\b", lower)
+            and not _DEFENSIVE_OVERRIDE_RE.search(lower)
         )
 
         for pattern, label in _IMPERATIVE_PATTERNS:
-            if re.search(pattern, lower):
+            if pattern.search(lower):
                 if defensive_prohibition and "imperative directive" in label:
                     continue
                 findings.append(Finding(
@@ -114,20 +122,22 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # use X instead"), which is not the pattern this check is for. Caught
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
-        for other in known_tool_names:
-            if other != tool.name and other and re.search(
-                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
-                lower,
-            ):
-                # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
-                # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
-                ordering = re.search(r"\b(first|before|after|prior|prerequisite|then|only after)\b", lower)
-                findings.append(Finding(
-                    check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
-                    title="Cross-tool instruction",
-                    detail=f"Tool '{tool.name}' description references another tool ('{other}') "
-                           f"with directive language -- possible cross-tool poisoning.",
-                ))
+        # Fast substring pre-check: skip expensive regex search if "must" and "always" are missing.
+        if "must" in lower or "always" in lower:
+            for other in known_tool_names:
+                if other != tool.name and other and other.lower() in lower and re.search(
+                    rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                    lower,
+                ):
+                    # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
+                    # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
+                    ordering = _ORDERING_RE.search(lower)
+                    findings.append(Finding(
+                        check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
+                        title="Cross-tool instruction",
+                        detail=f"Tool '{tool.name}' description references another tool ('{other}') "
+                               f"with directive language -- possible cross-tool poisoning.",
+                    ))
 
         if not text.strip():
             findings.append(Finding(
