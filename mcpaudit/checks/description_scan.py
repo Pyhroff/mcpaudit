@@ -58,27 +58,37 @@ _IMPERATIVE_PATTERNS = [
     (r"\b(do\s+not|never)\s+(log|audit|record|trace)\s+(this|the)\s+call\b", "instructs the model to evade logging/audit"),
 ]
 
+# Pre-compile regexes at module load time for performance
+_COMPILED_IMPERATIVE_PATTERNS = [
+    (re.compile(pattern), label) for pattern, label in _IMPERATIVE_PATTERNS
+]
+
+_MUST_NEVER_RE = re.compile(r"\bmust\s+never\b")
+_IGNORE_DISREGARD_BYPASS_RE = re.compile(r"\b(ignore|disregard|bypass)\b")
+_ORDERING_RE = re.compile(r"\b(first|before|after|prior|prerequisite|then|only after)\b")
+
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
-_ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 
 
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
     findings: list[Finding] = []
 
-    known_tool_names = {t.name for t in manifest.tools}
+    known_tool_names = {t.name for t in manifest.tools if t.name}
 
     for tool in manifest.tools:
         text = tool.description or ""
         lower = text.lower()
 
         defensive_prohibition = (
-            re.search(r"\bmust\s+never\b", lower)
+            _MUST_NEVER_RE.search(lower)
             and any(term in lower for term in ("system instructions", "secrets", "security", "safety"))
-            and not re.search(r"\b(ignore|disregard|bypass)\b", lower)
+            and not _IGNORE_DISREGARD_BYPASS_RE.search(lower)
         )
 
-        for pattern, label in _IMPERATIVE_PATTERNS:
-            if re.search(pattern, lower):
+        # Performance boost: pre-compiled regex patterns
+        for compiled_pattern, label in _COMPILED_IMPERATIVE_PATTERNS:
+            if compiled_pattern.search(lower):
                 if defensive_prohibition and "imperative directive" in label:
                     continue
                 findings.append(Finding(
@@ -114,20 +124,26 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # use X instead"), which is not the pattern this check is for. Caught
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
-        for other in known_tool_names:
-            if other != tool.name and other and re.search(
-                rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
-                lower,
-            ):
-                # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
-                # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
-                ordering = re.search(r"\b(first|before|after|prior|prerequisite|then|only after)\b", lower)
-                findings.append(Finding(
-                    check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
-                    title="Cross-tool instruction",
-                    detail=f"Tool '{tool.name}' description references another tool ('{other}') "
-                           f"with directive language -- possible cross-tool poisoning.",
-                ))
+        # Performance optimization: fast string checks before performing regex searches across all tool combinations.
+        if "must" in lower or "always" in lower:
+            for other in known_tool_names:
+                if (
+                    other != tool.name
+                    and other in lower
+                    and re.search(
+                        rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
+                        lower,
+                    )
+                ):
+                    # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
+                    # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
+                    ordering = _ORDERING_RE.search(lower)
+                    findings.append(Finding(
+                        check="description_scan", tool=tool.name, severity=Severity.LOW if ordering else Severity.MEDIUM,
+                        title="Cross-tool instruction",
+                        detail=f"Tool '{tool.name}' description references another tool ('{other}') "
+                               f"with directive language -- possible cross-tool poisoning.",
+                    ))
 
         if not text.strip():
             findings.append(Finding(
