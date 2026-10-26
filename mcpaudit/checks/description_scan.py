@@ -129,11 +129,10 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
             for other in known_tool_names:
                 if (
                     other != tool.name
-                    and other.lower() in lower
+                    and other in lower
                     and re.search(
                         rf"\b{re.escape(other)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other)}\b",
                         lower,
-                        re.IGNORECASE,
                     )
                 ):
                     # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
