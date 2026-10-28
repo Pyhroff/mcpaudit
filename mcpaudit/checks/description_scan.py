@@ -12,6 +12,7 @@ show up in any UI.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 from mcpaudit.findings import Finding, Severity
 from mcpaudit.manifest import ServerManifest
@@ -73,6 +74,14 @@ _ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
 
 
+# Bolt performance optimization: Cache compiled regexes for cross-tool matching across calls.
+@lru_cache(maxsize=1024)
+def _get_cross_tool_re(other_name: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"\b{re.escape(other_name)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other_name)}\b"
+    )
+
+
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -128,14 +137,17 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # via a real scan of the official MCP filesystem server, which uses
         # exactly that phrasing legitimately.
         #
-        # Bolt performance optimization: Perform a fast C-level substring check (`other_lower in lower`)
-        # before constructing and executing the cross-tool regex. This eliminates ~99% of unnecessary
-        # regex executions in O(N^2) tool comparisons.
-        for other_name, other_lower in known_tool_names:
-            if other_name != tool.name and other_lower in lower:
-                if re.search(
-                    rf"\b{re.escape(other_name)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other_name)}\b",
-                    lower,
+        # Bolt performance optimization:
+        # 1. Skip cross-tool loop entirely if lower contains neither 'must' nor 'always',
+        #    since the cross-tool coercion regex explicitly requires one of those terms.
+        # 2. Perform a fast C-level substring check (`other_lower in lower`) before regex match.
+        # 3. Use cached compiled regex via `_get_cross_tool_re(other_name)`.
+        if "must" in lower or "always" in lower:
+            for other_name, other_lower in known_tool_names:
+                if (
+                    other_name != tool.name
+                    and other_lower in lower
+                    and _get_cross_tool_re(other_name).search(lower)
                 ):
                     # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
                     # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.
