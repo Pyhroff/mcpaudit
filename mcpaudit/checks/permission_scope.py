@@ -32,8 +32,22 @@ _NON_FS_PATH_RE = re.compile(r"node|menu|parent|hierarchy|gameobject|asset|prefa
 def _first_sentence(desc: str) -> str:
     # v0.7: categorise on the tool name plus the *first sentence* of the description. Matching the whole
     # description let incidental words in usage notes ("Use when native Bash hooks are wrong ...") assign a category.
-    head = re.split(r"(?<=[.!?])\s|\n", (desc or "").strip(), maxsplit=1)[0]
-    return head[:200]
+    # Bolt performance optimization: use fast character iteration to find the first sentence boundary,
+    # avoiding regex lookbehind compilation/execution overhead per tool.
+    if not desc:
+        return ""
+    s = desc.strip()
+    if not s:
+        return ""
+    min_idx = len(s)
+    for i, ch in enumerate(s):
+        if ch == "\n":
+            min_idx = i
+            break
+        if ch in ".!?" and i + 1 < len(s) and s[i + 1].isspace():
+            min_idx = i + 1
+            break
+    return s[:min_idx][:200]
 
 _UNSCOPED_PATH_HINTS = ("any file", "entire filesystem", "any directory", "any url", "arbitrary")
 
@@ -45,8 +59,8 @@ def _schema_params(tool: ToolManifest) -> dict:
 def _param_is_unconstrained_string(param: dict) -> bool:
     if param.get("type") != "string":
         return False
-    # any of these narrows what values are acceptable
-    return not any(k in param for k in ("enum", "pattern", "format", "maxLength"))
+    # Bolt performance optimization: direct key membership check avoids generator allocation
+    return not ("enum" in param or "pattern" in param or "format" in param or "maxLength" in param)
 
 
 def _param_matches_category(pname: str, category: str) -> bool:
@@ -61,9 +75,9 @@ def check_scope(manifest: ServerManifest) -> list[Finding]:
     findings: list[Finding] = []
 
     for tool in manifest.tools:
-        name_and_desc = f"{tool.name} {tool.description}".lower()   # still used for the "admits unscoped" hint
-        categorise_text = f"{tool.name} {_first_sentence(tool.description)}".lower()
-        params = _schema_params(tool)
+        # Bolt performance optimization: categorization text does not need explicit lowercasing
+        # because category regexes (_EXEC_NAME_RE, _NET_NAME_RE, _FS_NAME_RE) use re.I (case-insensitive).
+        categorise_text = f"{tool.name} {_first_sentence(tool.description)}"
 
         risk_category = None
         if _EXEC_NAME_RE.search(categorise_text):
@@ -75,6 +89,11 @@ def check_scope(manifest: ServerManifest) -> list[Finding]:
 
         if risk_category is None:
             continue
+
+        # Bolt performance optimization: defer name_and_desc construction/lowercasing and params extraction
+        # until after verifying the tool possesses a potential risk category.
+        name_and_desc = f"{tool.name} {tool.description}".lower()
+        params = _schema_params(tool)
 
         unconstrained = [
             pname for pname, pschema in params.items()
