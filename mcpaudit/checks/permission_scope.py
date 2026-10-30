@@ -13,9 +13,15 @@ import re
 from mcpaudit.findings import Finding, Severity
 from mcpaudit.manifest import ServerManifest, ToolManifest
 
+# Bolt performance optimization: Pre-compile regexes without re.I and define fast C-level substring keyword
+# tuples to skip regex execution when no matching terms exist in lowercased string inputs.
 _EXEC_NAME_RE = re.compile(r"\b(exec|execute|shell|cmd|command|commands|eval|spawn)\b", re.I)
 _FS_NAME_RE = re.compile(r"\b(file|path|dir|read|write|delete|remove)\b", re.I)
 _NET_NAME_RE = re.compile(r"\b(fetch|http|url|request|download|upload|curl)\b", re.I)
+
+_EXEC_KEYWORDS = ("exec", "shell", "cmd", "command", "eval", "spawn")
+_NET_KEYWORDS = ("fetch", "http", "url", "request", "download", "upload", "curl")
+_FS_KEYWORDS = ("file", "path", "dir", "read", "write", "delete", "remove")
 
 # v0.7: which parameter names are relevant depends on the risk category. Previously one regex
 # (path|file|dir|url|cmd|command|query) applied to every category, so a "filesystem" finding could be
@@ -25,8 +31,14 @@ _PARAM_BY_CATEGORY = {
     "outbound network access": re.compile(r"url|uri|endpoint|host|baseurl", re.I),
     "filesystem access": re.compile(r"path|file|dir", re.I),
 }
+_PARAM_KEYWORDS = {
+    "arbitrary code/command execution": ("cmd", "command", "script", "code", "query", "args", "file"),
+    "outbound network access": ("url", "uri", "endpoint", "host", "baseurl"),
+    "filesystem access": ("path", "file", "dir"),
+}
 # v0.7: names that contain "path" but denote an in-application hierarchy/asset/JSON path, not a filesystem path.
 _NON_FS_PATH_RE = re.compile(r"node|menu|parent|hierarchy|gameobject|asset|prefab|clip|json|key|pattern|reference|relative", re.I)
+_NON_FS_KEYWORDS = ("node", "menu", "parent", "hierarchy", "gameobject", "asset", "prefab", "clip", "json", "key", "pattern", "reference", "relative")
 
 
 def _first_sentence(desc: str) -> str:
@@ -50,9 +62,13 @@ def _param_is_unconstrained_string(param: dict) -> bool:
 
 
 def _param_matches_category(pname: str, category: str) -> bool:
-    if not _PARAM_BY_CATEGORY[category].search(pname):
+    pname_lower = pname.lower()
+    # Bolt performance optimization: Fast C-level substring check before executing category regex.
+    if not any(k in pname_lower for k in _PARAM_KEYWORDS[category]):
         return False
-    if category == "filesystem access" and _NON_FS_PATH_RE.search(pname):
+    if not _PARAM_BY_CATEGORY[category].search(pname_lower):
+        return False
+    if category == "filesystem access" and any(k in pname_lower for k in _NON_FS_KEYWORDS) and _NON_FS_PATH_RE.search(pname_lower):
         return False
     return True
 
@@ -66,11 +82,12 @@ def check_scope(manifest: ServerManifest) -> list[Finding]:
         params = _schema_params(tool)
 
         risk_category = None
-        if _EXEC_NAME_RE.search(categorise_text):
+        # Bolt performance optimization: Fast C-level substring checks before running category regexes.
+        if any(k in categorise_text for k in _EXEC_KEYWORDS) and _EXEC_NAME_RE.search(categorise_text):
             risk_category = "arbitrary code/command execution"
-        elif _NET_NAME_RE.search(categorise_text):
+        elif any(k in categorise_text for k in _NET_KEYWORDS) and _NET_NAME_RE.search(categorise_text):
             risk_category = "outbound network access"
-        elif _FS_NAME_RE.search(categorise_text):
+        elif any(k in categorise_text for k in _FS_KEYWORDS) and _FS_NAME_RE.search(categorise_text):
             risk_category = "filesystem access"
 
         if risk_category is None:

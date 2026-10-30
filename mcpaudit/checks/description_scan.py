@@ -94,7 +94,8 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         lower = text.lower()
 
         defensive_prohibition = (
-            _MUST_NEVER_RE.search(lower)
+            "must" in lower
+            and _MUST_NEVER_RE.search(lower)
             and any(term in lower for term in ("system instructions", "secrets", "security", "safety"))
             and not _IGNORE_DISREGARD_BYPASS_RE.search(lower)
         )
