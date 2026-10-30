@@ -19,6 +19,16 @@ def test_scoped_file_tool_raises_nothing():
     assert findings == []
 
 
+def test_capitalized_capability_tool_detected():
+    m = _manifest(ToolManifest(
+        name="ExecuteCommand",
+        description="EXECUTES a shell Command.",
+        input_schema={"properties": {"Command": {"type": "string"}}},
+    ))
+    findings = check_scope(m)
+    assert any(f.severity == Severity.HIGH and "code/command execution" in f.title for f in findings)
+
+
 def test_flags_unscoped_arbitrary_exec():
     m = _manifest(ToolManifest(
         name="run_command",
