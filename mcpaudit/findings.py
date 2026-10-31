@@ -20,3 +20,17 @@ class Finding:
     severity: Severity
     title: str
     detail: str
+
+    def to_dict(self) -> dict[str, object]:
+        """Convert finding to dictionary representation.
+
+        Bolt performance optimization: Avoids dataclasses.asdict() overhead
+        (deep copying and recursive introspection) during report serialization.
+        """
+        return {
+            "check": self.check,
+            "tool": self.tool,
+            "severity": self.severity,
+            "title": self.title,
+            "detail": self.detail,
+        }
