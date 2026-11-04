@@ -167,7 +167,7 @@ class HttpMCPClient:
         self._url = url
         self._extra_headers = headers or {}
         self._timeout = timeout
-        self._client = None  # httpx.AsyncClient, imported lazily
+        self._client: Any = None  # httpx.AsyncClient, imported lazily
         self._session_id: str | None = None
         self._next_id = 1
 
