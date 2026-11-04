@@ -93,3 +93,25 @@ def test_from_dict_and_load(tmp_path):
     assert len(kept) == 1
     assert kept[0].title == "Empty tool description"
     assert len(suppressed) == 2
+
+
+def test_indexed_policy_rule_partitioning():
+    # Verify indexed policy handles mixtures of specific tools, wildcards, and unmatched tools correctly
+    policy = Policy(rules=[
+        PolicyRule(tool="tool_a", check="description_scan"),
+        PolicyRule(tool="tool_b", title="Special issue"),
+        PolicyRule(tool="*", check="permission_scope", title="Global scope warning"),
+    ])
+    findings = [
+        _finding(tool="tool_a", check="description_scan", title="Any title"),
+        _finding(tool="tool_a", check="permission_scope", title="Other issue"),
+        _finding(tool="tool_b", check="other_check", title="Special issue"),
+        _finding(tool="tool_b", check="other_check", title="Normal issue"),
+        _finding(tool="tool_c", check="permission_scope", title="Global scope warning"),
+        _finding(tool="tool_c", check="permission_scope", title="Other warning"),
+        _finding(tool="tool_d", check="description_scan", title="Random"),
+    ]
+    kept, suppressed = policy.apply(findings)
+
+    assert suppressed == [findings[0], findings[2], findings[4]]
+    assert kept == [findings[1], findings[3], findings[5], findings[6]]

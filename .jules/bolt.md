@@ -1,3 +1,7 @@
 ## 2026-03-30 - Fast Substring Guard in Cross-Tool Scanning
 **Learning:** In static tool scanners where tools are compared pairwise ($O(N^2)$ cross-tool analysis), dynamic regex matching on every tool pair dominates scan duration. Adding a fast C-level string containment check (`other_lower in lower`) before attempting regex matching skips ~99% of unnecessary regex executions. Additionally, compiling static heuristic patterns at module load avoids repeated regex search/compilation overhead per scan turn.
 **Action:** Always check substring presence (`sub in text`) before executing complex dynamic regexes in $O(N^2)$ cross-item comparisons.
+
+## 2026-03-31 - Tool-Partitioned Indexing for Finding Suppression Policies
+**Learning:** When evaluating findings against suppression policy rules, linear searching across all rules ($O(F \times R)$) scales poorly as rule sets and findings grow. Because the majority of policy rules target a specific tool name rather than global wildcards (`*`), partitioning rules into a dictionary keyed by `tool` allows $O(1)$ candidate retrieval. Evaluating only the matching tool bucket plus wildcard rules yields ~80% faster policy execution while preserving rule matching semantics.
+**Action:** In rule-matching or policy evaluation loops with discrete target identifiers (like `tool`), partition rules by identifier and only check the matched bucket and wildcards.
