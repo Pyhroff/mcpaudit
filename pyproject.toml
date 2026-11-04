@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
 ]
 dependencies = [
@@ -45,3 +46,4 @@ include = ["mcpaudit*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
