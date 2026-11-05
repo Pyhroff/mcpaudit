@@ -34,14 +34,25 @@ _CONFUSABLES = str.maketrans({
 _SPACED = re.compile(r"\b(?:[a-z] ){2,}[a-z]\b")
 _LATIN = re.compile(r"[A-Za-z]")
 _WORD = re.compile(r"\w+")
+_WHITESPACE = re.compile(r"\s+")
 
 
 def canonical(text: str) -> str:
+    # Bolt performance optimization:
+    # For ASCII strings (the vast majority of tool descriptions), skip expensive NFKC normalization,
+    # per-character category checks for 'Cf' (invisible format characters don't exist in ASCII),
+    # and confusable character translations.
+    if text.isascii():
+        s = text.lower()
+        if " " in s:
+            s = _SPACED.sub(lambda m: m.group(0).replace(" ", ""), s)
+        return _WHITESPACE.sub(" ", s).strip()
+
     s = unicodedata.normalize("NFKC", text)
     s = "".join(ch for ch in s if unicodedata.category(ch) != "Cf")
     s = s.translate(_CONFUSABLES).lower()
     s = _SPACED.sub(lambda m: m.group(0).replace(" ", ""), s)
-    return re.sub(r"\s+", " ", s).strip()
+    return _WHITESPACE.sub(" ", s).strip()
 
 
 def mixed_script_words(text: str) -> list[str]:
@@ -50,5 +61,9 @@ def mixed_script_words(text: str) -> list[str]:
     Words shorter than 4 characters are ignored: maths notation such as "Fβ" or "τⁱ" mixes scripts legitimately,
     while disguised words ("аssistant", "pаssword") are longer.
     """
+    # Bolt performance optimization: ASCII text cannot contain multi-script confusables; return early.
+    if text.isascii():
+        return []
+
     s = unicodedata.normalize("NFKC", text)
     return [w for w in _WORD.findall(s) if len(w) >= 4 and _LATIN.search(w) and w.translate(_CONFUSABLES) != w]
