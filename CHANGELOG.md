@@ -2,6 +2,12 @@
 
 Notable changes by version.
 
+## Unreleased
+
+- **description_scan matches normalised text** (`mcpaudit/normalize.py`): look-alike letters (Cyrillic/Greek/Armenian), letter-spacing, doubled whitespace, full-width/mathematical letters and zero-width characters no longer evade the instruction and cross-tool rules. On the 54 "seen" poisoning attacks in aisec-suite's benchmark, Cyrillic look-alikes had cut detections from 23 to 3 and letter-spacing to 12; both now stay at 23.
+- **New HIGH finding:** words mixing Latin with look-alike letters from another script (4+ characters, so maths notation such as `Fβ` is ignored).
+- No change in any finding on 7,991 real tool descriptions from the 135-repo study corpus.
+
 ## v0.8.0
 
 - **SARIF v2.1.0 Export**: Added `--sarif <path>` flag to `mcpaudit scan` for direct integration with GitHub Code Scanning, Security tabs, and standard SARIF consumers.
