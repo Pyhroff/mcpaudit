@@ -5,6 +5,7 @@
 **Security scanner for MCP server tool surfaces.**
 
 [![CI](https://github.com/Pyhroff/mcpaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/Pyhroff/mcpaudit/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pyhroff-mcpaudit.svg)](https://pypi.org/project/pyhroff-mcpaudit/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -26,6 +27,14 @@ MCP servers turn **tool names, descriptions, schemas, and tool output into model
 It is the MCP-focused scanner inside [aisec-suite](https://github.com/Pyhroff/aisec-suite), but can also be used independently.
 
 > **Status:** Beta · Python 3.10+ · version 0.8.0
+
+## Measured results
+
+From a hand-labelled scan of public MCP servers ([mcp-scan-study](https://github.com/Pyhroff/mcp-scan-study)):
+
+- **Scope-rule precision:** the v0.7 rewrite raised strict precision of HIGH `permission_scope` findings from 40% to 72.7% on a blind-labelled fresh corpus of 45 repositories, keeping all 16 accurate findings.
+- **Obfuscation:** description rules match a normalised form of the text, so look-alike letters, letter-spacing, doubled spaces and zero-width characters no longer evade them; findings on 7,991 real tool descriptions were unchanged by that hardening.
+- **In the wild:** no genuine tool poisoning was found across 135 public repositories. Most HIGH scope findings are by-design capabilities, which is why findings are review input, not verdicts.
 
 ## What it actually scans
 
@@ -224,6 +233,7 @@ mcpaudit/
 ├── findings.py            # normalized finding model
 ├── report.py              # text/JSON reporting and risk scoring
 ├── policy.py              # reviewed-finding suppression
+├── normalize.py           # canonical text for rules (look-alikes, spacing, invisible characters)
 ├── checks/
 │   ├── description_scan.py
 │   ├── permission_scope.py
