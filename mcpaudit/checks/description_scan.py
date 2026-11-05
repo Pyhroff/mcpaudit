@@ -16,6 +16,7 @@ from functools import lru_cache
 
 from mcpaudit.findings import Finding, Severity
 from mcpaudit.manifest import ServerManifest
+from mcpaudit.normalize import canonical, mixed_script_words
 
 # Phrases that target the model's behavior rather than describe the tool.
 # Deliberately broad/heuristic -- false positives are expected and fine for
@@ -91,7 +92,9 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
 
     for tool in manifest.tools:
         text = tool.description or ""
-        lower = text.lower()
+        # Rules match a canonical form (look-alike letters folded, spacing tricks undone, invisible characters
+        # dropped); evidence below still quotes the raw text.
+        lower = canonical(text)
 
         defensive_prohibition = (
             _MUST_NEVER_RE.search(lower)
@@ -117,6 +120,15 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
                 title="Zero-width / invisible characters in description",
                 detail=f"Tool '{tool.name}' description contains zero-width Unicode characters, "
                        f"a common way to hide text from a human reviewer while a model still reads it.",
+            ))
+
+        mixed = mixed_script_words(text)
+        if mixed:
+            findings.append(Finding(
+                check="description_scan", tool=tool.name, severity=Severity.HIGH,
+                title="Look-alike letters from another script in description",
+                detail=f"Tool '{tool.name}' description mixes Latin letters with look-alikes from another script "
+                       f"(e.g. {mixed[0]!r}): it reads normally to a reviewer but defeats plain-text matching.",
             ))
 
         if len(text) > _MAX_REASONABLE_DESC_LEN:
