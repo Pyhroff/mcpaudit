@@ -28,11 +28,14 @@ _PARAM_BY_CATEGORY = {
 # v0.7: names that contain "path" but denote an in-application hierarchy/asset/JSON path, not a filesystem path.
 _NON_FS_PATH_RE = re.compile(r"node|menu|parent|hierarchy|gameobject|asset|prefab|clip|json|key|pattern|reference|relative", re.I)
 
+# Bolt performance optimization: Pre-compile first-sentence splitting regex at module load.
+_FIRST_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s|\n")
+
 
 def _first_sentence(desc: str) -> str:
     # v0.7: categorise on the tool name plus the *first sentence* of the description. Matching the whole
     # description let incidental words in usage notes ("Use when native Bash hooks are wrong ...") assign a category.
-    head = re.split(r"(?<=[.!?])\s|\n", (desc or "").strip(), maxsplit=1)[0]
+    head = _FIRST_SENTENCE_SPLIT_RE.split((desc or "").strip(), maxsplit=1)[0]
     return head[:200]
 
 _UNSCOPED_PATH_HINTS = ("any file", "entire filesystem", "any directory", "any url", "arbitrary")

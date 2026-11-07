@@ -34,14 +34,29 @@ _CONFUSABLES = str.maketrans({
 _SPACED = re.compile(r"\b(?:[a-z] ){2,}[a-z]\b")
 _LATIN = re.compile(r"[A-Za-z]")
 _WORD = re.compile(r"\w+")
+_WHITESPACE = re.compile(r"\s+")
+
+# Bolt performance optimization:
+# 1. Merge Unicode Cf (format / zero-width characters) deletion directly into
+#    the confusables translation table at module load. str.translate(table)
+#    deletes characters mapped to None in a single fast C-level pass, eliminating
+#    the per-character Python generator `join(ch for ch in s if category(ch) != 'Cf')`.
+# 2. Pre-index _CONFUSABLES keys in a set for O(1) membership checking.
+_CANONICAL_TABLE: dict[int, str | None] = dict(_CONFUSABLES)
+for _cp in range(0x110000):
+    if unicodedata.category(chr(_cp)) == "Cf":
+        _CANONICAL_TABLE[_cp] = None
+
+_CONFUSABLE_KEYS: set[int] = set(_CONFUSABLES.keys())
 
 
 def canonical(text: str) -> str:
+    # Bolt: NFKC normalization followed by single-pass C translation table
+    # that handles both confusable substitution and Cf character deletion.
     s = unicodedata.normalize("NFKC", text)
-    s = "".join(ch for ch in s if unicodedata.category(ch) != "Cf")
-    s = s.translate(_CONFUSABLES).lower()
+    s = s.translate(_CANONICAL_TABLE).lower()
     s = _SPACED.sub(lambda m: m.group(0).replace(" ", ""), s)
-    return re.sub(r"\s+", " ", s).strip()
+    return _WHITESPACE.sub(" ", s).strip()
 
 
 def mixed_script_words(text: str) -> list[str]:
@@ -50,5 +65,16 @@ def mixed_script_words(text: str) -> list[str]:
     Words shorter than 4 characters are ignored: maths notation such as "Fβ" or "τⁱ" mixes scripts legitimately,
     while disguised words ("аssistant", "pаssword") are longer.
     """
+    # Bolt performance optimization:
+    # Fast path: pure ASCII text cannot contain cross-script confusables.
+    # Benign tool descriptions are almost universally pure ASCII; checking
+    # text.isascii() and s.isascii() skips all regex matching and word iterations.
+    if text.isascii():
+        return []
     s = unicodedata.normalize("NFKC", text)
+    if s.isascii():
+        return []
+    # Fast path: if no character in s belongs to the confusable set, no word can match.
+    if not any(ord(c) in _CONFUSABLE_KEYS for c in s):
+        return []
     return [w for w in _WORD.findall(s) if len(w) >= 4 and _LATIN.search(w) and w.translate(_CONFUSABLES) != w]
