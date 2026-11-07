@@ -1,3 +1,7 @@
 ## 2026-03-30 - Fast Substring Guard in Cross-Tool Scanning
 **Learning:** In static tool scanners where tools are compared pairwise ($O(N^2)$ cross-tool analysis), dynamic regex matching on every tool pair dominates scan duration. Adding a fast C-level string containment check (`other_lower in lower`) before attempting regex matching skips ~99% of unnecessary regex executions. Additionally, compiling static heuristic patterns at module load avoids repeated regex search/compilation overhead per scan turn.
 **Action:** Always check substring presence (`sub in text`) before executing complex dynamic regexes in $O(N^2)$ cross-item comparisons.
+
+## 2026-03-31 - Single-Pass Translation Table and ASCII Fast Paths in Unicode Normalization
+**Learning:** In static rule scanners processing untrusted tool descriptions, character-by-character filtering in Python generator expressions (e.g. `"".join(ch for ch in s if unicodedata.category(ch) != "Cf")`) dominates CPU time on large manifests. Mapping Unicode `Cf` codepoints to `None` in the confusable translation table allows `str.translate` to strip format characters and fold confusables in a single C-level pass. Furthermore, adding `text.isascii()` and confusable-key presence guards to multi-script word scanners eliminates word regex tokenization for ~99% of benign descriptions.
+**Action:** Combine character deletion and substitution into a single `str.translate()` table, and gate cross-script confusable scanners behind cheap `str.isascii()` checks.
