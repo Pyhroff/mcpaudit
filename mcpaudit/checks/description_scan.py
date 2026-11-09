@@ -12,7 +12,6 @@ show up in any UI.
 from __future__ import annotations
 
 import re
-from functools import lru_cache
 
 from mcpaudit.findings import Finding, Severity
 from mcpaudit.manifest import ServerManifest
@@ -75,12 +74,17 @@ _ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
 
 
-# Bolt performance optimization: Cache compiled regexes for cross-tool matching across calls.
-@lru_cache(maxsize=1024)
-def _get_cross_tool_re(other_name: str) -> re.Pattern[str]:
+def _cross_tool_re(other_name: str) -> re.Pattern[str]:
     return re.compile(
         rf"\b{re.escape(other_name)}\b.{{0,40}}\b(must|always)\b|\b(must|always)\b.{{0,40}}\b{re.escape(other_name)}\b"
     )
+
+
+def _cached_cross_re(cache: dict[str, re.Pattern[str]], name: str) -> re.Pattern[str]:
+    rx = cache.get(name)
+    if rx is None:
+        rx = cache[name] = _cross_tool_re(name)
+    return rx
 
 
 def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
@@ -88,7 +92,10 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
 
     # Bolt performance optimization: Store pairs of (name, name_lower) once per scan
     # to avoid repeating string lowercasing inside nested tool loops.
-    known_tool_names = [(t.name, t.name.lower()) for t in manifest.tools if t.name]
+    # One entry per distinct name: a server repeating a name thousands of times must not multiply the work below.
+    known_tool_names = list({t.name: (t.name, t.name.lower()) for t in manifest.tools if t.name}.values())
+    # Per-scan cache (a process-wide LRU is thrashed by a server with thousands of distinct names).
+    cross_tool_res: dict[str, re.Pattern[str]] = {}
 
     for tool in manifest.tools:
         text = tool.description or ""
@@ -153,13 +160,13 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
         # 1. Skip cross-tool loop entirely if lower contains neither 'must' nor 'always',
         #    since the cross-tool coercion regex explicitly requires one of those terms.
         # 2. Perform a fast C-level substring check (`other_lower in lower`) before regex match.
-        # 3. Use cached compiled regex via `_get_cross_tool_re(other_name)`.
+        # 3. Use a per-scan cache of compiled regexes (`_cached_cross_re`).
         if "must" in lower or "always" in lower:
             for other_name, other_lower in known_tool_names:
                 if (
                     other_name != tool.name
                     and other_lower in lower
-                    and _get_cross_tool_re(other_name).search(lower)
+                    and _cached_cross_re(cross_tool_res, other_name).search(lower)
                 ):
                     # v0.7: "you must first call X" / "call X before ..." is ordinary prerequisite guidance (seen
                     # across AWS, Unity and status-page servers in a 90-repo scan) -> LOW; other coercion stays MEDIUM.

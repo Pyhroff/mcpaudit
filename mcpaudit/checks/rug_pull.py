@@ -66,7 +66,7 @@ def _diff_one_tool(base_tool: ToolManifest, cur_tool: ToolManifest, findings: li
                 f"Tool '{cur_tool.name}' input schema changed since the baseline was captured "
                 f"(e.g. a new parameter, or a constraint like an enum/pattern was loosened or "
                 f"removed).\n"
-                f"  baseline: {base_tool.input_schema}\n"
-                f"  current:  {cur_tool.input_schema}"
+                f"  baseline: {str(base_tool.input_schema)[:300]}\n"
+                f"  current:  {str(cur_tool.input_schema)[:300]}"
             ),
         ))
