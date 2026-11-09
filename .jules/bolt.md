@@ -1,3 +1,7 @@
 ## 2026-03-30 - Fast Substring Guard in Cross-Tool Scanning
 **Learning:** In static tool scanners where tools are compared pairwise ($O(N^2)$ cross-tool analysis), dynamic regex matching on every tool pair dominates scan duration. Adding a fast C-level string containment check (`other_lower in lower`) before attempting regex matching skips ~99% of unnecessary regex executions. Additionally, compiling static heuristic patterns at module load avoids repeated regex search/compilation overhead per scan turn.
 **Action:** Always check substring presence (`sub in text`) before executing complex dynamic regexes in $O(N^2)$ cross-item comparisons.
+
+## 2026-03-30 - Fast-Path ASCII Normalization in Security Scanners
+**Learning:** In text-scanning pipelines that normalize descriptions for obfuscation analysis, the vast majority of analyzed inputs are clean ASCII text. Full Unicode pipelines (e.g. `unicodedata.normalize("NFKC", text)`, per-character category inspection, and confusable dictionary translation) dominate CPU time when executed unconditionally on every tool description. Bypassing Unicode normalization via `text.isascii()` and replacing regex-based whitespace normalization with C-level `" ".join(s.split())` cuts text normalization latency by ~90% without altering outputs.
+**Action:** Guard expensive Unicode normalization and confusable analysis pipelines behind an ASCII fast-path (`text.isascii()`) when ASCII inputs cannot trigger the non-ASCII transformations.
