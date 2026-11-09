@@ -39,7 +39,8 @@ _UNSCOPED_PATH_HINTS = ("any file", "entire filesystem", "any directory", "any u
 
 
 def _schema_params(tool: ToolManifest) -> dict:
-    return (tool.input_schema or {}).get("properties", {}) or {}
+    props = (tool.input_schema or {}).get("properties")
+    return props if isinstance(props, dict) else {}
 
 
 def _param_is_unconstrained_string(param: dict) -> bool:

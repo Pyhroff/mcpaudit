@@ -7,8 +7,22 @@ live connection at all, only the JSON a server already returns from
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def _as_text(value: Any) -> str:
+    """A server controls every field it sends, so a name or description may arrive as null, a number or a list.
+    Scanners work on text: keep the content (JSON for containers) instead of crashing on it."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, default=str, ensure_ascii=False)
+    except (TypeError, ValueError, RecursionError):
+        return str(value)
 
 
 @dataclass
@@ -16,6 +30,12 @@ class ToolManifest:
     name: str
     description: str = ""
     input_schema: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.name = _as_text(self.name)
+        self.description = _as_text(self.description)
+        if not isinstance(self.input_schema, dict):
+            self.input_schema = {}
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
