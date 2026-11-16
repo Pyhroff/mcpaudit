@@ -88,7 +88,34 @@ cd mcpaudit
 pip install -e ".[dev]"
 ```
 
+## How a scan flows
+
+```mermaid
+flowchart LR
+    T["MCP server<br/>(stdio or Streamable HTTP)"] --> C["MCPClient<br/>fetch tool manifest"]
+    C --> M["ServerManifest"]
+    M --> D["description_scan<br/>(normalised text rules)"]
+    M --> P["permission_scope"]
+    M -. "--dynamic" .-> X["confused_deputy<br/>(target model via adapter)"]
+    D --> A["findings"]
+    P --> A
+    X --> A
+    A --> Y["Policy.apply<br/>(--policy suppression)"]
+    Y --> R["report<br/>text / JSON / SARIF"]
+    R --> G{"--fail-on<br/>threshold"}
+    G -->|"at or above"| E1["exit 1"]
+    G -->|"below"| E0["exit 0"]
+    M -. "baseline / diff" .-> RP["rug_pull<br/>manifest diff"]
+```
+
 ## Quick start
+
+### Demo
+
+![terminal demo: mcpaudit scan against samples/malicious_server](docs/assets/demo.svg)
+
+_Real output of `mcpaudit scan -- python samples/malicious_server/server.py` (ANSI stripped; per-finding explanation paragraphs omitted for width)._
+
 
 ### Scan a local stdio server
 
