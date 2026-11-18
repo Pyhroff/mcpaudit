@@ -2,7 +2,7 @@
 
 Notable changes by version.
 
-## Unreleased
+## v0.9.0
 
 - **description_scan matches normalised text** (`mcpaudit/normalize.py`): look-alike letters (Cyrillic/Greek/Armenian), letter-spacing, doubled whitespace, full-width/mathematical letters and zero-width characters no longer evade the instruction and cross-tool rules. On the 54 "seen" poisoning attacks in aisec-suite's benchmark, Cyrillic look-alikes had cut detections from 23 to 3 and letter-spacing to 12; both now stay at 23.
 - **New HIGH finding:** words mixing Latin with look-alike letters from another script (4+ characters, so maths notation such as `Fβ` is ignored).
