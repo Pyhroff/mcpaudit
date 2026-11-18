@@ -5,7 +5,6 @@ act on: a severity-sorted scorecard, plain text or JSON.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 
 from mcpaudit.findings import Finding, Severity
 
@@ -25,13 +24,16 @@ def risk_score(findings: list[Finding]) -> int:
 
 
 def to_json(server_name: str, findings: list[Finding]) -> str:
+    # Bolt performance optimization: Sort findings once and serialize via Finding.to_dict()
+    # instead of dataclasses.asdict() reflection and fallback default=str.
+    sorted_findings = sort_findings(findings)
     payload = {
         "server": server_name,
-        "risk_score": risk_score(findings),
-        "finding_count": len(findings),
-        "findings": [asdict(f) for f in sort_findings(findings)],
+        "risk_score": risk_score(sorted_findings),
+        "finding_count": len(sorted_findings),
+        "findings": [f.to_dict() for f in sorted_findings],
     }
-    return json.dumps(payload, indent=2, default=str)
+    return json.dumps(payload, indent=2)
 
 
 def to_sarif(server_name: str, findings: list[Finding]) -> str:
