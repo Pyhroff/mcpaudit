@@ -10,3 +10,5 @@ venv/
 .env
 mcpaudit-baseline.json
 *.local.json
+
+.coverage
