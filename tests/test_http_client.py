@@ -154,3 +154,55 @@ def _patch_client(monkeypatch, transport: httpx.MockTransport) -> None:
         real_init(self, *args, **kwargs)
 
     monkeypatch.setattr(httpx_module.AsyncClient, "__init__", patched_init)
+
+
+@pytest.mark.asyncio
+async def test_negotiated_protocol_version_is_sent_on_every_request_after_initialize(monkeypatch):
+    """Streamable HTTP 2025-06-18: after initialize, every request carries MCP-Protocol-Version with the version
+    the server answered with -- which may be older than the one we asked for."""
+    from mcpaudit import __version__
+    from mcpaudit.mcp_client import _PROTOCOL_VERSION
+
+    seen: list[tuple[str, str | None]] = []
+    init_params: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append((body.get("method"), request.headers.get("MCP-Protocol-Version")))
+        if body.get("method") == "initialize":
+            init_params.update(body["params"])
+            return _json_response(request, {"protocolVersion": "2025-03-26"})
+        if body.get("method") == "notifications/initialized":
+            return httpx.Response(202)
+        if body.get("method") == "tools/list":
+            return _json_response(request, {"tools": TOOLS})
+        return httpx.Response(404)
+
+    _patch_client(monkeypatch, httpx.MockTransport(handler))
+
+    async with HttpMCPClient("https://example.test/mcp") as client:
+        await client.fetch_manifest()
+        assert client.protocol_version == "2025-03-26"
+
+    assert init_params["protocolVersion"] == _PROTOCOL_VERSION
+    assert init_params["clientInfo"] == {"name": "mcpaudit", "version": __version__}
+    assert seen[0] == ("initialize", None)
+    assert seen[1:] == [("notifications/initialized", "2025-03-26"), ("tools/list", "2025-03-26")]
+
+
+@pytest.mark.asyncio
+async def test_missing_protocol_version_in_initialize_falls_back_to_requested(monkeypatch):
+    from mcpaudit.mcp_client import _PROTOCOL_VERSION
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if body.get("method") == "initialize":
+            return _json_response(request, {})
+        if body.get("method") == "notifications/initialized":
+            return httpx.Response(202)
+        return _json_response(request, {"tools": []})
+
+    _patch_client(monkeypatch, httpx.MockTransport(handler))
+
+    async with HttpMCPClient("https://example.test/mcp") as client:
+        assert client.protocol_version == _PROTOCOL_VERSION

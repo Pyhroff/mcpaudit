@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
+from mcpaudit import __version__
 from mcpaudit.findings import Finding, Severity
 
 _SEVERITY_ORDER = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3}
@@ -86,6 +87,7 @@ def to_sarif(server_name: str, findings: list[Finding]) -> str:
                 "tool": {
                     "driver": {
                         "name": "mcpaudit",
+                        "version": __version__,
                         "informationUri": "https://github.com/Pyhroff/mcpaudit",
                         "rules": list(rules.values()),
                     }

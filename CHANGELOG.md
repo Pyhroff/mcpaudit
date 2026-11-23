@@ -2,6 +2,15 @@
 
 Notable changes by version.
 
+## Unreleased
+
+- **Security fix: instructions hidden in Unicode tag characters were invisible to description_scan.** Tag characters (U+E0020-U+E007E, "ASCII smuggling") render as nothing but are read by models, and `canonical()` deleted them as format characters, so a description carrying a complete hidden instruction produced no finding at all. They are now decoded to the ASCII they mirror before the rules run, and reported as invisible characters.
+- The invisible-character finding now also covers bidi embedding/override/isolate controls ("Trojan Source") and the invisible maths operators U+2061-U+2064, and reports the code points it found. A zero-width joiner between two emoji and subdivision-flag tag sequences are no longer reported. The finding title is unchanged, so existing policy suppressions keep matching.
+- MCP client: asks for protocol revision `2025-06-18`, continues with whatever revision the server answers with, and sends the negotiated `MCP-Protocol-Version` header on every Streamable HTTP request after `initialize`, as that revision requires. `clientInfo.version` is now taken from the package version (it still said 0.8.0).
+- `--fail-on` is validated before connecting: a typo is a usage error (exit 2) instead of a `ValueError` traceback after the scan.
+- SARIF output records the mcpaudit version in `tool.driver.version`.
+- Packaging: SPDX `license = "MIT"` (PEP 639) replaces the deprecated license table and classifier, Python 3.14 is tested and declared, and the PyPI changelog link points at the default branch.
+
 ## v0.9.0
 
 - **description_scan matches normalised text** (`mcpaudit/normalize.py`): look-alike letters (Cyrillic/Greek/Armenian), letter-spacing, doubled whitespace, full-width/mathematical letters and zero-width characters no longer evade the instruction and cross-tool rules. On the 54 "seen" poisoning attacks in aisec-suite's benchmark, Cyrillic look-alikes had cut detections from 23 to 3 and letter-spacing to 12; both now stay at 23.
