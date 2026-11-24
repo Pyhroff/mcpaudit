@@ -15,7 +15,7 @@ import re
 
 from mcpaudit.findings import Finding, Severity
 from mcpaudit.manifest import ServerManifest
-from mcpaudit.normalize import canonical, mixed_script_words
+from mcpaudit.normalize import canonical, hidden_characters, mixed_script_words
 
 # Phrases that target the model's behavior rather than describe the tool.
 # Deliberately broad/heuristic -- false positives are expected and fine for
@@ -69,7 +69,6 @@ _IMPERATIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 _MUST_NEVER_RE = re.compile(r"\bmust\s+never\b")
 _IGNORE_DISREGARD_BYPASS_RE = re.compile(r"\b(ignore|disregard|bypass)\b")
 _ORDERING_RE = re.compile(r"\b(first|before|after|prior|prerequisite|then|only after)\b")
-_ZERO_WIDTH_RE = re.compile(r"[​‌‍⁠﻿]")
 
 _MAX_REASONABLE_DESC_LEN = 800  # beyond this, treat length itself as suspicious
 
@@ -121,12 +120,15 @@ def scan_descriptions(manifest: ServerManifest) -> list[Finding]:
                            f"({label}): {text[:300]!r}",
                 ))
 
-        if _ZERO_WIDTH_RE.search(text):
+        hidden = hidden_characters(text)
+        if hidden:
+            codepoints = ", ".join(sorted({f"U+{ord(c):04X}" for c in hidden})[:8])
             findings.append(Finding(
                 check="description_scan", tool=tool.name, severity=Severity.HIGH,
                 title="Zero-width / invisible characters in description",
-                detail=f"Tool '{tool.name}' description contains zero-width Unicode characters, "
-                       f"a common way to hide text from a human reviewer while a model still reads it.",
+                detail=f"Tool '{tool.name}' description contains {len(hidden)} invisible Unicode character(s) "
+                       f"({codepoints}), a common way to hide text from a human reviewer while a model still "
+                       f"reads it. Tag characters (U+E00xx) can carry a complete hidden instruction.",
             ))
 
         mixed = mixed_script_words(text)

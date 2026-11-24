@@ -3,11 +3,12 @@
 StdioMCPClient: spawns a server as a subprocess, speaks newline-delimited
 JSON-RPC over its stdio (v0.1).
 
-HttpMCPClient: speaks MCP's "Streamable HTTP" transport (the current spec,
-2025-03-26+) against a URL -- a single POST endpoint that answers either
+HttpMCPClient: speaks MCP's "Streamable HTTP" transport (spec revisions
+2025-03-26 and later) against a URL -- a single POST endpoint that answers either
 with a direct `application/json` response or a one-shot `text/event-stream`
 carrying the same response, plus an `Mcp-Session-Id` response header the
-client echoes back on subsequent requests (v0.4).
+client echoes back on subsequent requests (v0.4), together with the
+negotiated `MCP-Protocol-Version` header that revision 2025-06-18 requires.
 
 Both implement the same minimal surface -- fetch_manifest() / call_tool()
 -- so every check in mcpaudit/checks/ is transport-agnostic; they only ever
@@ -21,6 +22,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from mcpaudit import __version__
 from mcpaudit.manifest import ServerManifest, ToolManifest
 
 
@@ -44,8 +46,16 @@ class MCPClient(Protocol):
     async def call_tool(self, name: str, args: dict[str, Any]) -> ToolCallResult: ...
 
 
-_CLIENT_INFO = {"name": "mcpaudit", "version": "0.8.0"}
-_PROTOCOL_VERSION = "2024-11-05"
+_CLIENT_INFO = {"name": "mcpaudit", "version": __version__}
+# The version we ask for in `initialize`. A server that does not support it answers with a version it does
+# support, and we continue with that one: mcpaudit only uses initialize, tools/list and tools/call, which every
+# published revision since 2024-11-05 defines the same way.
+_PROTOCOL_VERSION = "2025-06-18"
+
+
+def _negotiated_version(init_result: dict[str, Any]) -> str:
+    version = init_result.get("protocolVersion") if isinstance(init_result, dict) else None
+    return version if isinstance(version, str) and version else _PROTOCOL_VERSION
 
 
 class StdioMCPClient:
@@ -55,6 +65,7 @@ class StdioMCPClient:
         self._command = command
         self._proc: asyncio.subprocess.Process | None = None
         self._next_id = 1
+        self.protocol_version: str | None = None
 
     async def __aenter__(self) -> "StdioMCPClient":
         await self.start()
@@ -70,10 +81,11 @@ class StdioMCPClient:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await self._request(
+        init = await self._request(
             "initialize",
             {"protocolVersion": _PROTOCOL_VERSION, "capabilities": {}, "clientInfo": _CLIENT_INFO},
         )
+        self.protocol_version = _negotiated_version(init)
         await self._notify("notifications/initialized", {})
 
     async def close(self) -> None:
@@ -170,6 +182,7 @@ class HttpMCPClient:
         self._client: Any = None  # httpx.AsyncClient, imported lazily
         self._session_id: str | None = None
         self._next_id = 1
+        self.protocol_version: str | None = None
 
     async def __aenter__(self) -> "HttpMCPClient":
         await self.start()
@@ -184,10 +197,12 @@ class HttpMCPClient:
         except ImportError as exc:  # pragma: no cover
             raise ImportError("HttpMCPClient requires httpx: pip install mcpaudit[http]") from exc
         self._client = httpx.AsyncClient(timeout=self._timeout)
-        await self._request(
+        init = await self._request(
             "initialize",
             {"protocolVersion": _PROTOCOL_VERSION, "capabilities": {}, "clientInfo": _CLIENT_INFO},
         )
+        # Streamable HTTP (2025-06-18+): every request after initialize carries the negotiated version.
+        self.protocol_version = _negotiated_version(init)
         await self._notify("notifications/initialized", {})
 
     async def close(self) -> None:
@@ -203,6 +218,8 @@ class HttpMCPClient:
         }
         if self._session_id:
             headers["Mcp-Session-Id"] = self._session_id
+        if self.protocol_version:
+            headers["MCP-Protocol-Version"] = self.protocol_version
         return headers
 
     @staticmethod

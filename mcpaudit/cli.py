@@ -9,8 +9,8 @@ v0.1: static checks (description_scan, permission_scope).
 v0.2: baseline/diff (rug-pull detection).
 v0.3: --dynamic confused-deputy check against a live target model.
 v0.4: --url for MCP's Streamable HTTP transport, not just local stdio.
-v0.5: --policy to suppress reviewed/accepted findings (CI-gate friendly). <- current
-See CHANGELOG.md.
+v0.5: --policy to suppress reviewed/accepted findings (CI-gate friendly).
+See CHANGELOG.md for later releases.
 """
 
 from __future__ import annotations
@@ -55,6 +55,22 @@ def main(
     version: bool = typer.Option(False, "--version", callback=_version_callback, is_eager=True),
 ) -> None:
     pass
+
+
+_SEVERITY_ORDER = ["low", "medium", "high", "critical"]
+
+
+def _parse_fail_on(value: Optional[str]) -> Optional[int]:
+    """Validate --fail-on before connecting, so a typo is reported up front instead of as a traceback after
+    the whole scan has run."""
+    if value is None:
+        return None
+    try:
+        return _SEVERITY_ORDER.index(value.lower())
+    except ValueError:
+        raise typer.BadParameter(
+            f"{value!r} is not one of: {', '.join(_SEVERITY_ORDER)}", param_hint="--fail-on"
+        ) from None
 
 
 def _make_client(server_command: list[str], url: Optional[str]) -> MCPClient:
@@ -114,6 +130,7 @@ def scan(
 ):
     """Fetch a server's tool manifest and run the static checks against it (add --dynamic for the
     confused-deputy check, which also needs a live target model)."""
+    threshold = _parse_fail_on(fail_on)
     try:
         manifest = asyncio.run(_fetch_manifest(server_command or [], url))
     except Exception as exc:  # noqa: BLE001
@@ -147,11 +164,8 @@ def scan(
         sarif_out.write_text(to_sarif(manifest.server_name, findings), encoding="utf-8")
         console.print(f"\n[dim]SARIF report written to {sarif_out}[/]")
 
-    if fail_on:
-        order = ["low", "medium", "high", "critical"]
-        threshold = order.index(fail_on.lower())
-        if any(order.index(f.severity.value) >= threshold for f in findings):
-            raise typer.Exit(1)
+    if threshold is not None and any(_SEVERITY_ORDER.index(f.severity.value) >= threshold for f in findings):
+        raise typer.Exit(1)
 
 
 async def _run_dynamic_check(manifest: ServerManifest, target: str, tool_name: Optional[str]) -> list[Finding]:
