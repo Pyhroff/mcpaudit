@@ -26,7 +26,7 @@ MCP servers turn **tool names, descriptions, schemas, and tool output into model
 
 It is the MCP-focused scanner inside [aisec-suite](https://github.com/Pyhroff/aisec-suite), but can also be used independently.
 
-> **Status:** Beta · Python 3.10+ · version 0.9.0
+> **Status:** Beta · Python 3.10+ · version 0.9.1
 
 ## Measured results
 
