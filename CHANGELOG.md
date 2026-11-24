@@ -2,7 +2,7 @@
 
 Notable changes by version.
 
-## Unreleased
+## v0.9.1
 
 - **Security fix: instructions hidden in Unicode tag characters were invisible to description_scan.** Tag characters (U+E0020-U+E007E, "ASCII smuggling") render as nothing but are read by models, and `canonical()` deleted them as format characters, so a description carrying a complete hidden instruction produced no finding at all. They are now decoded to the ASCII they mirror before the rules run, and reported as invisible characters.
 - The invisible-character finding now also covers bidi embedding/override/isolate controls ("Trojan Source") and the invisible maths operators U+2061-U+2064, and reports the code points it found. A zero-width joiner between two emoji and subdivision-flag tag sequences are no longer reported. The finding title is unchanged, so existing policy suppressions keep matching.
